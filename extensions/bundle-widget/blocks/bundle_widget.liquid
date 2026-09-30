@@ -1,0 +1,554 @@
+{% comment %}
+  Smart Multi-Collection Bundle Widget
+  Dynamic Golden Honey Box Style
+{% endcomment %}
+
+{% assign main_product = product %}
+{% assign comp_product_1 = block.settings.bundle_product_1 %}
+{% assign comp_product_2 = block.settings.bundle_product_2 %}
+
+{% comment %}
+  If no complementary product is set in theme settings, fallback to first other product in store collections
+{% endcomment %}
+{% if comp_product_1 == blank and collections['all'].products.size > 1 %}
+  {% for p in collections['all'].products %}
+    {% if p.id != main_product.id and comp_product_1 == blank %}
+      {% assign comp_product_1 = p %}
+    {% elsif p.id != main_product.id and p.id != comp_product_1.id and comp_product_2 == blank %}
+      {% assign comp_product_2 = p %}
+      {% break %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+<div 
+  class="smart-bundle-container" 
+  id="smart-bundle-{{ block.id }}"
+  data-discount="{{ block.settings.discount_percent }}"
+  data-accent="{{ block.settings.accent_color }}"
+  style="
+    --sb-accent: {{ block.settings.accent_color }};
+    --sb-bg: {{ block.settings.bg_color }};
+    --sb-text: {{ block.settings.text_color }};
+  "
+>
+  <div class="smart-bundle-card">
+    <!-- Header -->
+    <div class="smart-bundle-header">
+      <div class="smart-bundle-title-wrap">
+        <span class="smart-bundle-sparkle">?</span>
+        <h3 class="smart-bundle-title">{{ block.settings.heading }}</h3>
+      </div>
+      <span class="smart-bundle-badge">{{ block.settings.badge_text }}</span>
+    </div>
+
+    <!-- Subtitle / Info -->
+    <p class="smart-bundle-subtitle">
+      Buy together from complementary collections to unlock <strong>{{ block.settings.discount_percent }}% OFF</strong> instantly.
+    </p>
+
+    <!-- Product Rows -->
+    <div class="smart-bundle-items">
+      
+      <!-- Main Product Item -->
+      {% if main_product %}
+        {% assign main_variant = main_product.selected_or_first_available_variant %}
+        <div class="smart-bundle-item" data-price="{{ main_variant.price }}" data-variant-id="{{ main_variant.id }}">
+          <label class="smart-bundle-checkbox-wrap">
+            <input type="checkbox" class="smart-bundle-checkbox" checked disabled data-item-type="main">
+            <span class="smart-bundle-custom-check checked disabled">?</span>
+          </label>
+          <div class="smart-bundle-thumb">
+            {% if main_product.featured_image %}
+              <img src="{{ main_product.featured_image | image_url: width: 140 }}" alt="{{ main_product.title }}" width="70" height="70" loading="lazy">
+            {% else %}
+              <div class="smart-bundle-thumb-placeholder">??</div>
+            {% endif %}
+          </div>
+          <div class="smart-bundle-details">
+            <div class="smart-bundle-step-tag">Step 1 � Current Product</div>
+            <a href="{{ main_product.url }}" class="smart-bundle-product-title">{{ main_product.title }}</a>
+            <div class="smart-bundle-price-tag">{{ main_variant.price | money }}</div>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Plus separator -->
+      {% if comp_product_1 %}
+        <div class="smart-bundle-plus">+</div>
+
+        <!-- Complementary Product 1 -->
+        {% assign comp_variant_1 = comp_product_1.selected_or_first_available_variant %}
+        <div class="smart-bundle-item" data-price="{{ comp_variant_1.price }}" data-variant-id="{{ comp_variant_1.id }}">
+          <label class="smart-bundle-checkbox-wrap">
+            <input type="checkbox" class="smart-bundle-checkbox" checked data-item-type="addon">
+            <span class="smart-bundle-custom-check checked">?</span>
+          </label>
+          <div class="smart-bundle-thumb">
+            {% if comp_product_1.featured_image %}
+              <img src="{{ comp_product_1.featured_image | image_url: width: 140 }}" alt="{{ comp_product_1.title }}" width="70" height="70" loading="lazy">
+            {% else %}
+              <div class="smart-bundle-thumb-placeholder">??</div>
+            {% endif %}
+          </div>
+          <div class="smart-bundle-details">
+            <div class="smart-bundle-step-tag">Step 2 � Add-on Collection</div>
+            <a href="{{ comp_product_1.url }}" class="smart-bundle-product-title">{{ comp_product_1.title }}</a>
+            <div class="smart-bundle-price-tag">{{ comp_variant_1.price | money }}</div>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Plus separator 2 -->
+      {% if comp_product_2 %}
+        <div class="smart-bundle-plus">+</div>
+
+        <!-- Complementary Product 2 -->
+        {% assign comp_variant_2 = comp_product_2.selected_or_first_available_variant %}
+        <div class="smart-bundle-item" data-price="{{ comp_variant_2.price }}" data-variant-id="{{ comp_variant_2.id }}">
+          <label class="smart-bundle-checkbox-wrap">
+            <input type="checkbox" class="smart-bundle-checkbox" checked data-item-type="addon">
+            <span class="smart-bundle-custom-check checked">?</span>
+          </label>
+          <div class="smart-bundle-thumb">
+            {% if comp_product_2.featured_image %}
+              <img src="{{ comp_product_2.featured_image | image_url: width: 140 }}" alt="{{ comp_product_2.title }}" width="70" height="70" loading="lazy">
+            {% else %}
+              <div class="smart-bundle-thumb-placeholder">??</div>
+            {% endif %}
+          </div>
+          <div class="smart-bundle-details">
+            <div class="smart-bundle-step-tag">Step 3 � Bonus Collection</div>
+            <a href="{{ comp_product_2.url }}" class="smart-bundle-product-title">{{ comp_product_2.title }}</a>
+            <div class="smart-bundle-price-tag">{{ comp_variant_2.price | money }}</div>
+          </div>
+        </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Summary & CTA Section -->
+    <div class="smart-bundle-footer">
+      <div class="smart-bundle-pricing">
+        <div class="smart-bundle-total-row">
+          <span class="smart-bundle-total-label">Bundle Total:</span>
+          <span class="smart-bundle-original-price" id="sb-orig-price-{{ block.id }}"></span>
+          <span class="smart-bundle-final-price" id="sb-final-price-{{ block.id }}"></span>
+        </div>
+        <div class="smart-bundle-savings-badge" id="sb-savings-{{ block.id }}">
+          Save {{ block.settings.discount_percent }}%
+        </div>
+      </div>
+
+      <button type="button" class="smart-bundle-btn" id="sb-add-btn-{{ block.id }}">
+        <span class="smart-bundle-btn-text">{{ block.settings.cta_button_text }}</span>
+        <span class="smart-bundle-btn-icon">?</span>
+      </button>
+      <div class="smart-bundle-feedback" id="sb-feedback-{{ block.id }}"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .smart-bundle-container {
+    margin: 24px 0;
+    font-family: inherit;
+  }
+  .smart-bundle-card {
+    background-color: var(--sb-bg, #18181b);
+    color: var(--sb-text, #ffffff);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 0 15px rgba(245, 158, 11, 0.08);
+  }
+  .smart-bundle-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 12px;
+    margin-bottom: 10px;
+  }
+  .smart-bundle-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .smart-bundle-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+  }
+  .smart-bundle-badge {
+    background: linear-gradient(135deg, var(--sb-accent, #f59e0b), #d97706);
+    color: #000;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+  }
+  .smart-bundle-subtitle {
+    font-size: 0.86rem;
+    color: #a1a1aa;
+    margin: 0 0 16px 0;
+  }
+  .smart-bundle-items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .smart-bundle-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 14px;
+    transition: all 0.2s ease;
+  }
+  .smart-bundle-item:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(245, 158, 11, 0.3);
+  }
+  .smart-bundle-checkbox-wrap {
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .smart-bundle-checkbox {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .smart-bundle-custom-check {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 2px solid #52525b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: bold;
+    color: transparent;
+    transition: all 0.15s ease;
+  }
+  .smart-bundle-custom-check.checked {
+    background: var(--sb-accent, #f59e0b);
+    border-color: var(--sb-accent, #f59e0b);
+    color: #111;
+  }
+  .smart-bundle-custom-check.disabled {
+    opacity: 0.8;
+    cursor: not-allowed;
+  }
+  .smart-bundle-thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #27272a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .smart-bundle-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .smart-bundle-thumb-placeholder {
+    font-size: 24px;
+  }
+  .smart-bundle-details {
+    flex: 1;
+    min-width: 0;
+  }
+  .smart-bundle-step-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--sb-accent, #f59e0b);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .smart-bundle-product-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #f4f4f5;
+    text-decoration: none;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .smart-bundle-product-title:hover {
+    color: var(--sb-accent, #f59e0b);
+  }
+  .smart-bundle-price-tag {
+    font-size: 0.85rem;
+    color: #d4d4d8;
+    font-weight: 500;
+    margin-top: 2px;
+  }
+  .smart-bundle-plus {
+    text-align: center;
+    color: #71717a;
+    font-size: 16px;
+    font-weight: bold;
+    margin: -6px 0;
+  }
+  .smart-bundle-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 8px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .smart-bundle-pricing {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .smart-bundle-total-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .smart-bundle-total-label {
+    font-size: 0.88rem;
+    color: #a1a1aa;
+    font-weight: 500;
+  }
+  .smart-bundle-original-price {
+    font-size: 0.92rem;
+    color: #71717a;
+    text-decoration: line-through;
+  }
+  .smart-bundle-final-price {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--sb-accent, #f59e0b);
+  }
+  .smart-bundle-savings-badge {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+  .smart-bundle-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--sb-accent, #f59e0b), #d97706);
+    color: #000;
+    border: none;
+    padding: 13px 20px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: transform 0.15s ease, filter 0.15s ease;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  }
+  .smart-bundle-btn:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+  }
+  .smart-bundle-btn:active {
+    transform: translateY(0);
+  }
+  .smart-bundle-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .smart-bundle-feedback {
+    font-size: 0.82rem;
+    text-align: center;
+    min-height: 18px;
+  }
+  .smart-bundle-feedback.success {
+    color: #4ade80;
+  }
+  .smart-bundle-feedback.error {
+    color: #f87171;
+  }
+</style>
+
+<script>
+  (function() {
+    const container = document.getElementById('smart-bundle-{{ block.id }}');
+    if (!container) return;
+
+    const discountPercent = parseFloat(container.dataset.discount || 15);
+    const origPriceEl = document.getElementById('sb-orig-price-{{ block.id }}');
+    const finalPriceEl = document.getElementById('sb-final-price-{{ block.id }}');
+    const savingsEl = document.getElementById('sb-savings-{{ block.id }}');
+    const addBtn = document.getElementById('sb-add-btn-{{ block.id }}');
+    const feedbackEl = document.getElementById('sb-feedback-{{ block.id }}');
+
+    function formatMoney(cents) {
+      return (cents / 100).toLocaleString(undefined, {
+        style: 'currency',
+        currency: '{{ cart.currency.iso_code }}'
+      });
+    }
+
+    function calculateTotal() {
+      let rawTotal = 0;
+      let selectedCount = 0;
+
+      const items = container.querySelectorAll('.smart-bundle-item');
+      items.forEach(item => {
+        const checkbox = item.querySelector('.smart-bundle-checkbox');
+        const price = parseInt(item.dataset.price || 0, 10);
+        if (checkbox && checkbox.checked) {
+          rawTotal += price;
+          selectedCount++;
+        }
+      });
+
+      // Discount applies if multiple items are selected
+      const isEligible = selectedCount >= 2;
+      const discount = isEligible ? (rawTotal * (discountPercent / 100)) : 0;
+      const finalTotal = rawTotal - discount;
+
+      if (origPriceEl) {
+        origPriceEl.textContent = isEligible ? formatMoney(rawTotal) : '';
+        origPriceEl.style.display = isEligible ? 'inline' : 'none';
+      }
+      if (finalPriceEl) {
+        finalPriceEl.textContent = formatMoney(finalTotal);
+      }
+      if (savingsEl) {
+        if (isEligible) {
+          savingsEl.textContent = `Save ${formatMoney(discount)} (${discountPercent}%)`;
+          savingsEl.style.display = 'inline-block';
+        } else {
+          savingsEl.textContent = `Add 1 more to save ${discountPercent}%`;
+          savingsEl.style.display = 'inline-block';
+        }
+      }
+    }
+
+    // Bind checkboxes
+    container.querySelectorAll('.smart-bundle-checkbox').forEach(cb => {
+      cb.addEventListener('change', function() {
+        const checkSpan = this.parentElement.querySelector('.smart-bundle-custom-check');
+        if (checkSpan) {
+          if (this.checked) {
+            checkSpan.classList.add('checked');
+            checkSpan.textContent = '?';
+          } else {
+            checkSpan.classList.remove('checked');
+            checkSpan.textContent = '';
+          }
+        }
+        calculateTotal();
+      });
+    });
+
+    calculateTotal();
+
+    // AJAX Add to Cart
+    if (addBtn) {
+      addBtn.addEventListener('click', async function() {
+        const selectedVariants = [];
+        container.querySelectorAll('.smart-bundle-item').forEach(item => {
+          const checkbox = item.querySelector('.smart-bundle-checkbox');
+          const variantId = item.dataset.variantId;
+          if (checkbox && checkbox.checked && variantId) {
+            selectedVariants.push({
+              id: parseInt(variantId, 10),
+              quantity: 1,
+              properties: {
+                '_bundle': 'Smart Multi-Collection Bundle',
+                '_discount': `${discountPercent}%`
+              }
+            });
+          }
+        });
+
+        if (selectedVariants.length === 0) {
+          if (feedbackEl) {
+            feedbackEl.className = 'smart-bundle-feedback error';
+            feedbackEl.textContent = 'Please select at least 1 item.';
+          }
+          return;
+        }
+
+        addBtn.disabled = true;
+        const btnText = addBtn.querySelector('.smart-bundle-btn-text');
+        const origText = btnText ? btnText.textContent : 'Add Bundle to Cart';
+        if (btnText) btnText.textContent = 'Adding to cart...';
+        if (feedbackEl) feedbackEl.textContent = '';
+
+        try {
+          const res = await fetch('/cart/add.js', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ items: selectedVariants })
+          });
+
+          if (res.ok) {
+            if (feedbackEl) {
+              feedbackEl.className = 'smart-bundle-feedback success';
+              feedbackEl.textContent = '? Bundle added to cart! Redirecting...';
+            }
+            setTimeout(() => {
+              window.location.href = '/cart';
+            }, 600);
+          } else {
+            const err = await res.json();
+            throw new Error(err.description || 'Could not add items to cart.');
+          }
+        } catch (e) {
+          if (feedbackEl) {
+            feedbackEl.className = 'smart-bundle-feedback error';
+            feedbackEl.textContent = e.message || 'Something went wrong.';
+          }
+          addBtn.disabled = false;
+          if (btnText) btnText.textContent = origText;
+        }
+      });
+    }
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Smart Bundle Widget",
+  "target": "section",
+  "settings": [
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Frequently Bought Together" },
+    { "type": "text", "id": "badge_text", "label": "Badge Text", "default": "Bundle Save 15%" },
+    { "type": "color", "id": "accent_color", "label": "Accent Color", "default": "#f59e0b" },
+    { "type": "color", "id": "bg_color", "label": "Card Background", "default": "#18181b" },
+    { "type": "color", "id": "text_color", "label": "Text Color", "default": "#ffffff" },
+    { "type": "product", "id": "bundle_product_1", "label": "Complementary Product" },
+    { "type": "range", "id": "discount_percent", "min": 5, "max": 50, "step": 5, "unit": "%", "label": "Bundle Discount", "default": 15 },
+    { "type": "text", "id": "cta_button_text", "label": "Button Text", "default": "Add Bundle to Cart" }
+  ]
+}
+{% endschema %}
