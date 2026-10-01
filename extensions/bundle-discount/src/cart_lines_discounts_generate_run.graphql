@@ -1,0 +1,14 @@
+query CartInput {
+  cart {
+    lines {
+      id
+      quantity
+      bundleGroup: attribute(key: "_bundle_group") {
+        value
+      }
+      bundleDiscount: attribute(key: "_bundle_discount_num") {
+        value
+      }
+    }
+  }
+}

@@ -6,7 +6,7 @@ import db from "../db.server";
 export const loader = async ({ request }) => {
   const { session, admin } = await authenticate.admin(request);
 
-  // Automatically ensure BUNDLE15 discount code exists in store
+  // Automatically ensure BUNDLE15 discount code and Automatic Discount exist in store
   try {
     await admin.graphql(
       `#graphql
@@ -37,9 +37,37 @@ export const loader = async ({ request }) => {
         }
       }
     );
-  } catch (e) {
-    // Discount code may already exist
-  }
+  } catch (e) {}
+
+  try {
+    await admin.graphql(
+      `#graphql
+      mutation createAutoDiscount($automaticBasicDiscount: DiscountAutomaticBasicInput!) {
+        discountAutomaticBasicCreate(automaticBasicDiscount: $automaticBasicDiscount) {
+          automaticDiscountNode {
+            id
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+      {
+        variables: {
+          automaticBasicDiscount: {
+            title: "Smart Multi-Collection Bundle 15% OFF",
+            startsAt: new Date().toISOString(),
+            customerSelection: { all: true },
+            customerGets: {
+              value: { percentage: 0.15 },
+              items: { all: true }
+            }
+          }
+        }
+      }
+    );
+  } catch (e) {}
 
   const bundles = await db.bundle.findMany({
     orderBy: { createdAt: "desc" },

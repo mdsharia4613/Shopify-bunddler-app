@@ -366,20 +366,39 @@
           savingsBanner.innerHTML = '🎉 Bundle Savings Applied: -' + formatMoney(totalBundleSavingsCents);
         }
 
-        // 4. CHECKOUT BUTTON INTERCEPTION
+        // 4. CHECKOUT BUTTON & FORM INTERCEPTION (GUARANTEED CHECKOUT DISCOUNT)
+        // Add hidden input to cart forms
+        document.querySelectorAll('form[action*="/cart"]').forEach(form => {
+          let discInput = form.querySelector('input[name="discount"]');
+          if (!discInput && discountCode) {
+            discInput = document.createElement('input');
+            discInput.type = 'hidden';
+            discInput.name = 'discount';
+            discInput.value = discountCode;
+            form.appendChild(discInput);
+          }
+          
+          form.addEventListener('submit', function(e) {
+            const submitter = e.submitter;
+            if (discountCode && (!submitter || submitter.name === 'checkout' || submitter.classList.contains('cart__checkout-button') || submitter.id === 'checkout')) {
+              e.preventDefault();
+              window.location.href = '/discount/' + encodeURIComponent(discountCode) + '?redirect=/checkout';
+            }
+          });
+        });
+
+        // Intercept checkout buttons directly
         const checkoutBtns = document.querySelectorAll(
           'button[name="checkout"], input[name="checkout"], #checkout, a[href*="/checkout"], .cart__checkout-button'
         );
         checkoutBtns.forEach(btn => {
-          btn.addEventListener('click', async function(e) {
+          btn.addEventListener('click', function(e) {
             if (discountCode) {
               e.preventDefault();
-              try {
-                await fetch('/discount/' + encodeURIComponent(discountCode));
-              } catch(err) {}
-              window.location.href = '/checkout?discount=' + encodeURIComponent(discountCode);
+              e.stopPropagation();
+              window.location.href = '/discount/' + encodeURIComponent(discountCode) + '?redirect=/checkout';
             }
-          });
+          }, true);
         });
       }
     } catch(err) {
