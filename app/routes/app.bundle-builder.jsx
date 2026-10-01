@@ -6,8 +6,17 @@ import db from "../db.server";
 // ১. স্টোরের রিয়েল কালেকশন ও প্রোডাক্ট ফেচ করা
 export const loader = async ({ request }) => {
     const { admin } = await authenticate.admin(request);
+    const url = new URL(request.url);
+    const editId = url.searchParams.get("id");
 
-    // কালেকশন ফেচ
+    let existingBundle = null;
+    if (editId) {
+        existingBundle = await db.bundle.findUnique({
+            where: { id: editId },
+        });
+    }
+
+    // Collections query
     const colRes = await admin.graphql(
         `#graphql
       query getCollections {
@@ -35,7 +44,7 @@ export const loader = async ({ request }) => {
             { id: "col-3", title: "Home page", count: 1 },
         ];
 
-    // প্রোডাক্ট ফেচ
+    // Products query
     const prodRes = await admin.graphql(
         `#graphql
       query getProducts {
@@ -74,45 +83,123 @@ export const loader = async ({ request }) => {
     return { collections, products, existingBundle };
 };
 
-// ২. ডাটাবেজে রিয়েল সেভ
 export const action = async ({ request }) => {
-    await authenticate.admin(request);
+    const { admin } = await authenticate.admin(request);
     const formData = await request.formData();
 
+    const bundleId = formData.get("bundleId");
     const title = formData.get("title");
     const strategy = "Multi-Collection Complete Bundle";
     const discount = formData.get("discountSummary");
     const products = formData.get("productsSummary");
+    const bundleConfig = formData.get("bundleConfig");
 
-    await db.bundle.create({
-        data: {
-            title,
-            strategy,
-            discount,
-            products,
-            status: "Active",
-        },
-    });
+    let savedBundle = null;
+    if (bundleId) {
+        savedBundle = await db.bundle.update({
+            where: { id: bundleId },
+            data: {
+                title,
+                discount,
+                products: bundleConfig || products,
+            },
+        });
+    } else {
+        savedBundle = await db.bundle.create({
+            data: {
+                title,
+                strategy,
+                discount,
+                products: bundleConfig || products,
+                status: "Active",
+            },
+        });
+    }
 
-    return { success: true };
+    // Sync with Shopify App Metafield for instant live storefront update
+    try {
+        let parsed = null;
+        try { parsed = JSON.parse(bundleConfig); } catch (e) {}
+        const discountMatch = discount?.match(/(\d+)%/);
+        const discountNum = parsed?.discountPercent || (discountMatch ? parseInt(discountMatch[1], 10) : 15);
+
+        const shopRes = await admin.graphql(`query { shop { id } }`);
+        const shopJson = await shopRes.json();
+        const shopId = shopJson.data?.shop?.id;
+
+        if (shopId) {
+            await admin.graphql(
+                `#graphql
+                mutation setBundleMetafield($metafields: [MetafieldsSetInput!]!) {
+                    metafieldsSet(metafields: $metafields) {
+                        userErrors {
+                            field
+                            message
+                        }
+                    }
+                }`,
+                {
+                    variables: {
+                        metafields: [
+                            {
+                                ownerId: shopId,
+                                namespace: "$app:smart_bundles",
+                                key: "active_bundle",
+                                type: "json",
+                                value: JSON.stringify({
+                                    id: savedBundle.id,
+                                    title: savedBundle.title,
+                                    discountPercent: discountNum,
+                                    discountSummary: savedBundle.discount,
+                                    updatedAt: new Date().toISOString(),
+                                }),
+                            },
+                        ],
+                    },
+                }
+            );
+        }
+    } catch (err) {
+        console.error("Metafield sync error:", err);
+    }
+
+    return { success: true, bundleId: savedBundle.id };
 };
 
 export default function BundleBuilder() {
-    const { collections, products } = useLoaderData();
+    const { collections, products, existingBundle } = useLoaderData();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
 
     const brandColor = searchParams.get("color") || "#f59e0b";
 
-    // কালেকশন রো স্টেট (Collection 1, Collection 2 ইত্যাদি)
-    const [collectionRows, setCollectionRows] = useState([
+    // Parse existing bundle data if in edit mode
+    let initialDiscount = 15;
+    let initialTitle = existingBundle?.title || "Multi-Collection Step Bundle";
+    let initialRows = [
         { id: 1, collectionId: collections[0]?.id || "", selectionType: "all", selectedProducts: [] },
         { id: 2, collectionId: collections[1]?.id || "", selectionType: "all", selectedProducts: [] },
-    ]);
+    ];
 
-    // ডায়নামিক ডিসকাউন্ট স্টেট
-    const [discountPercent, setDiscountPercent] = useState(15);
-    const [bundleTitle, setBundleTitle] = useState("Multi-Collection Step Bundle");
+    if (existingBundle) {
+        const match = existingBundle.discount?.match(/(\d+)%/);
+        if (match) {
+            initialDiscount = parseInt(match[1], 10);
+        }
+        try {
+            const parsed = JSON.parse(existingBundle.products);
+            if (parsed.collectionRows && Array.isArray(parsed.collectionRows) && parsed.collectionRows.length > 0) {
+                initialRows = parsed.collectionRows;
+            }
+            if (parsed.discountPercent) {
+                initialDiscount = parsed.discountPercent;
+            }
+        } catch (e) {}
+    }
+
+    const [collectionRows, setCollectionRows] = useState(initialRows);
+    const [discountPercent, setDiscountPercent] = useState(initialDiscount);
+    const [bundleTitle, setBundleTitle] = useState(initialTitle);
     const [isPublishing, setIsPublishing] = useState(false);
 
     // মোডাল স্টেট
@@ -175,9 +262,20 @@ export default function BundleBuilder() {
     const handlePublish = async () => {
         setIsPublishing(true);
         const formData = new FormData();
+        if (existingBundle) {
+            formData.append("bundleId", existingBundle.id);
+        }
         formData.append("title", bundleTitle);
         formData.append("discountSummary", `${discountPercent}% OFF (All ${collectionRows.length} Collections)`);
         formData.append("productsSummary", `Must pick 1 product from each of ${collectionRows.length} Collections`);
+
+        const bundleConfig = {
+            discountPercent,
+            collectionRows,
+            brandColor,
+            title: bundleTitle,
+        };
+        formData.append("bundleConfig", JSON.stringify(bundleConfig));
 
         const res = await fetch("/app/bundle-builder", {
             method: "POST",
@@ -185,8 +283,10 @@ export default function BundleBuilder() {
         });
 
         if (res.ok) {
-            alert("Bundle published successfully! Redirecting to Dashboard...");
+            alert(existingBundle ? "Bundle updated successfully! Redirecting to Dashboard..." : "Bundle published successfully! Redirecting to Dashboard...");
             navigate("/app");
+        } else {
+            alert("Failed to save bundle. Please try again.");
         }
         setIsPublishing(false);
     };
