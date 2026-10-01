@@ -30,7 +30,7 @@ export function cartTransformRun(input: CartTransformRunInput): CartTransformRun
     if (lines.length < 2) continue;
 
     const firstLine = lines[0];
-    const parentVariantId = firstLine.bundleParentVariantId?.value;
+    const parentVariantId = firstLine.bundleParentVariantId?.value || ('id' in firstLine.merchandise ? firstLine.merchandise.id : null);
     
     // We require a valid parent variant to perform linesMerge
     if (!parentVariantId) continue;

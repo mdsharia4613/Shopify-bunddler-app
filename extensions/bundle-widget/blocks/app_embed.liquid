@@ -28,13 +28,13 @@
     border-radius: 12px !important;
     box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
     box-sizing: border-box !important;
-    margin: 8px 0 !important;
+    margin: 6px 0 !important;
     font-family: inherit !important;
   }
   .sb-cart-img-wrap {
     flex-shrink: 0 !important;
-    width: 72px !important;
-    height: 72px !important;
+    width: 76px !important;
+    height: 76px !important;
     border-radius: 8px !important;
     overflow: hidden !important;
     background: #f8fafc !important;
@@ -104,6 +104,7 @@
   .sb-cart-chip {
     display: inline-flex !important;
     align-items: center !important;
+    gap: 4px !important;
     font-size: 12px !important;
     font-weight: 500 !important;
     color: #334155 !important;
@@ -122,7 +123,8 @@
     border: none !important;
     padding: 0 !important;
     font-family: inherit !important;
-    margin-top: 2px !important;
+    margin-top: 4px !important;
+    font-weight: 500 !important;
     transition: color 0.15s ease !important;
   }
   .sb-cart-remove-btn:hover {
@@ -246,19 +248,32 @@
         const bundleImage = props['_bundle_image'] || firstItem.image || 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png';
 
         // Component chips
-        const chipsHtml = entries.map(e => `<span class="sb-cart-chip">• ${e.item.product_title}</span>`).join('');
+        const chipsHtml = entries.map(e => '<span class="sb-cart-chip"><span style="color:#059669; font-weight:bold;">•</span> ' + e.item.product_title + '</span>').join('');
 
         // 1. TRANSFORM LEAD ROW WITH CLEAN OPTION A CARD
         const leadRow = rows[firstEntry.index];
         if (leadRow) {
-          // Identify product cell (usually the first td or the main details div)
-          const productCell = leadRow.querySelector('td:first-child, .cart-item__details, td.cart-item__details') || leadRow.firstElementChild;
-          
-          if (productCell && !leadRow.classList.contains('sb-transformed')) {
+          const allTds = Array.from(leadRow.querySelectorAll('td'));
+          let mediaCell = leadRow.querySelector('.cart-item__media') || allTds[0] || leadRow.firstElementChild;
+          let detailsCell = leadRow.querySelector('.cart-item__details') || allTds[1];
+          let qtyCell = leadRow.querySelector('.cart-item__quantity') || allTds[2];
+          let priceCell = leadRow.querySelector('.cart-item__totals') || allTds[allTds.length - 1];
+
+          if (mediaCell && !leadRow.classList.contains('sb-transformed')) {
             leadRow.classList.add('sb-transformed');
+
+            // CRITICAL FIX: Hide the details cell completely so 'product 2' and its native 'Remove' button NEVER show
+            if (detailsCell && detailsCell !== mediaCell) {
+              detailsCell.style.setProperty('display', 'none', 'important');
+              if (mediaCell.tagName === 'TD') {
+                mediaCell.colSpan = 2;
+              }
+            }
+            mediaCell.style.width = '55%';
+            mediaCell.style.verticalAlign = 'top';
             
-            // Render Option A card inside the product cell
-            productCell.innerHTML = `
+            // Render Option A card inside mediaCell
+            mediaCell.innerHTML = `
               <div class="sb-cart-bundle-container">
                 <div class="sb-cart-img-wrap">
                   <img src="${bundleImage}" alt="${bundleTitle}" class="sb-cart-img" />
@@ -279,8 +294,8 @@
               </div>
             `;
 
-            // Attach remove listener
-            const removeBtn = productCell.querySelector('.sb-cart-remove-btn');
+            // Attach remove listener to delete ALL bundle products together
+            const removeBtn = mediaCell.querySelector('.sb-cart-remove-btn');
             if (removeBtn) {
               removeBtn.addEventListener('click', async function(e) {
                 e.preventDefault();
@@ -300,8 +315,16 @@
             }
           }
 
-          // Update price in lead row (usually last td or totals cell)
-          const priceCell = leadRow.querySelector('td:last-child, td.cart-item__totals, .cart-item__price, [data-cart-item-line-price]');
+          // Lock quantity column cleanly to 1 Bundle
+          if (qtyCell) {
+            qtyCell.innerHTML = `
+              <div class="sb-cart-qty-box" style="text-align: center; font-weight: 700; color: #1e293b; padding: 6px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: inline-block;">
+                1 Bundle
+              </div>
+            `;
+          }
+
+          // Update price in totals cell
           if (priceCell) {
             priceCell.innerHTML = `
               <div class="sb-cart-price-cell">
@@ -310,16 +333,6 @@
                 <span class="sb-cart-save-tag">Save ${formatMoney(savingsCents)}</span>
               </div>
             `;
-          }
-
-          // Lock quantity column to 1
-          const qtyCell = leadRow.querySelector('td:nth-child(2), .cart-item__quantity');
-          if (qtyCell) {
-            const input = qtyCell.querySelector('input');
-            if (input) {
-              input.value = 1;
-              input.readOnly = true;
-            }
           }
         }
 
@@ -366,8 +379,17 @@
           savingsBanner.innerHTML = '🎉 Bundle Savings Applied: -' + formatMoney(totalBundleSavingsCents);
         }
 
-        // 4. CHECKOUT BUTTON & FORM INTERCEPTION (GUARANTEED CHECKOUT DISCOUNT)
-        // Add hidden input to cart forms
+        // 4. CHECKOUT GUARANTEED DISCOUNT INTERCEPTION
+        function proceedToCheckout(e) {
+          if (discountCode) {
+            if (e) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+            window.location.href = '/discount/' + encodeURIComponent(discountCode) + '?redirect=/checkout';
+          }
+        }
+
         document.querySelectorAll('form[action*="/cart"]').forEach(form => {
           let discInput = form.querySelector('input[name="discount"]');
           if (!discInput && discountCode) {
@@ -377,28 +399,20 @@
             discInput.value = discountCode;
             form.appendChild(discInput);
           }
-          
           form.addEventListener('submit', function(e) {
             const submitter = e.submitter;
             if (discountCode && (!submitter || submitter.name === 'checkout' || submitter.classList.contains('cart__checkout-button') || submitter.id === 'checkout')) {
               e.preventDefault();
-              window.location.href = '/discount/' + encodeURIComponent(discountCode) + '?redirect=/checkout';
+              proceedToCheckout();
             }
           });
         });
 
-        // Intercept checkout buttons directly
         const checkoutBtns = document.querySelectorAll(
           'button[name="checkout"], input[name="checkout"], #checkout, a[href*="/checkout"], .cart__checkout-button'
         );
         checkoutBtns.forEach(btn => {
-          btn.addEventListener('click', function(e) {
-            if (discountCode) {
-              e.preventDefault();
-              e.stopPropagation();
-              window.location.href = '/discount/' + encodeURIComponent(discountCode) + '?redirect=/checkout';
-            }
-          }, true);
+          btn.addEventListener('click', proceedToCheckout, true);
         });
       }
     } catch(err) {

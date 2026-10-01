@@ -69,6 +69,61 @@ export const loader = async ({ request }) => {
     );
   } catch (e) {}
 
+  // Automatically activate Cart Transform & Bundle Discount Functions
+  try {
+    const fnRes = await admin.graphql(`
+      query getFunctions {
+        shopifyFunctions(first: 10) {
+          nodes {
+            id
+            title
+            apiType
+          }
+        }
+      }
+    `);
+    const fnData = await fnRes.json();
+    const fns = fnData?.data?.shopifyFunctions?.nodes || [];
+
+    const ctFn = fns.find(f => f.apiType === 'cart_transform' || f.title.includes('cart-transform'));
+    if (ctFn) {
+      await admin.graphql(
+        `#graphql
+        mutation createCartTransform($functionId: String!) {
+          cartTransformCreate(functionId: $functionId) {
+            cartTransform { id }
+            userErrors { field message }
+          }
+        }`,
+        { variables: { functionId: ctFn.id } }
+      );
+    }
+
+    const discFn = fns.find(f => f.apiType === 'discount' || f.title.includes('bundle-discount'));
+    if (discFn) {
+      await admin.graphql(
+        `#graphql
+        mutation createBundleDiscountApp($automaticAppDiscount: DiscountAutomaticAppInput!) {
+          discountAutomaticAppCreate(automaticAppDiscount: $automaticAppDiscount) {
+            automaticDiscountNode { id }
+            userErrors { field message }
+          }
+        }`,
+        {
+          variables: {
+            automaticAppDiscount: {
+              title: "Smart Multi-Collection Bundle 15% OFF",
+              functionId: discFn.id,
+              startsAt: new Date().toISOString()
+            }
+          }
+        }
+      );
+    }
+  } catch (e) {
+    console.log("Functions setup notice:", e.message);
+  }
+
   const bundles = await db.bundle.findMany({
     orderBy: { createdAt: "desc" },
   });

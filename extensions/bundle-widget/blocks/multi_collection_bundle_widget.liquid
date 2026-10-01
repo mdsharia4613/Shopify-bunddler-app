@@ -712,7 +712,7 @@
         });
         const totalDiscountCents = Math.round(totalOriginalCents * (1 - (discountPercent / 100)));
         const primaryImage = bundleSteps[0]?.selectedProduct?.imageUrl || '';
-        const parentVariantId = window.SmartBundles?.parentVariantId || '';
+        const parentVariantId = window.SmartBundles?.parentVariantId || ('gid://shopify/ProductVariant/' + bundleSteps[0]?.selectedProduct?.variantId);
         const discountCode = window.SmartBundles?.discountCode || ('BUNDLE' + discountPercent);
 
         const items = [];
