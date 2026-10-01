@@ -4,7 +4,42 @@ import db from "../db.server";
 
 // ১. রিয়েল ডাটাবেজ থেকে বান্ডেল নিয়ে আসা
 export const loader = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
+
+  // Automatically ensure BUNDLE15 discount code exists in store
+  try {
+    await admin.graphql(
+      `#graphql
+      mutation createBundle15Discount($basicCodeDiscount: DiscountCodeBasicInput!) {
+        discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+          codeDiscountNode {
+            id
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+      {
+        variables: {
+          basicCodeDiscount: {
+            title: "Smart Bundle 15% OFF",
+            code: "BUNDLE15",
+            startsAt: new Date().toISOString(),
+            customerSelection: { all: true },
+            customerGets: {
+              value: { percentage: 0.15 },
+              items: { all: true }
+            },
+            appliesOncePerCustomer: false
+          }
+        }
+      }
+    );
+  } catch (e) {
+    // Discount code may already exist
+  }
 
   const bundles = await db.bundle.findMany({
     orderBy: { createdAt: "desc" },

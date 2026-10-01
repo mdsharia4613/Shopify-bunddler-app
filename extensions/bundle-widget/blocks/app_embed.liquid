@@ -1,6 +1,6 @@
 {% comment %}
   Smart Bundles Core App Embed
-  Enables global bundle management, cart merging into single row, and checkout discount handling
+  Option A: Clean Consolidated Bundle Card with accurate real price updates
 {% endcomment %}
 
 <script>
@@ -16,63 +16,160 @@
 </script>
 
 <style>
-  .smart-bundle-cart-badge {
-    display: inline-block;
-    padding: 3px 8px;
-    background: #ecfdf5;
-    color: #059669;
-    border: 1px solid #a7f3d0;
-    border-radius: 9999px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    margin-top: 6px;
+  /* Option A: Consolidated Bundle Card Styles */
+  .sb-cart-bundle-container {
+    width: 100% !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+    padding: 14px 16px !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
+    box-sizing: border-box !important;
+    margin: 8px 0 !important;
+    font-family: inherit !important;
   }
-  .smart-bundle-cart-includes {
-    font-size: 13px;
-    color: #64748b;
-    margin-top: 4px;
-    line-height: 1.4;
+  .sb-cart-img-wrap {
+    flex-shrink: 0 !important;
+    width: 72px !important;
+    height: 72px !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
-  .smart-bundle-cart-price-box {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+  .sb-cart-img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
   }
-  .smart-bundle-cart-price-box s {
-    color: #94a3b8;
-    font-size: 13px;
-    text-decoration: line-through;
+  .sb-cart-content {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
   }
-  .smart-bundle-cart-price-box span {
-    color: #059669;
-    font-weight: 800;
-    font-size: 16px;
+  .sb-cart-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
   }
-  .smart-bundle-total-savings {
-    color: #059669;
-    font-size: 13px;
-    font-weight: 700;
-    margin-top: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
+  .sb-cart-title {
+    font-weight: 700 !important;
+    font-size: 15px !important;
+    color: #0f172a !important;
+    line-height: 1.3 !important;
+    margin: 0 !important;
+  }
+  .sb-cart-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 3px 8px !important;
+    background: #ecfdf5 !important;
+    color: #059669 !important;
+    border: 1px solid #a7f3d0 !important;
+    border-radius: 9999px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em !important;
+  }
+  .sb-cart-components-box {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    margin-top: 2px !important;
+  }
+  .sb-cart-components-label {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    margin-bottom: 4px !important;
+  }
+  .sb-cart-components-list {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .sb-cart-chip {
+    display: inline-flex !important;
+    align-items: center !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: #334155 !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 2px 8px !important;
+    border-radius: 6px !important;
+  }
+  .sb-cart-remove-btn {
+    align-self: flex-start !important;
+    font-size: 12px !important;
+    color: #ef4444 !important;
+    text-decoration: underline !important;
+    cursor: pointer !important;
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    font-family: inherit !important;
+    margin-top: 2px !important;
+    transition: color 0.15s ease !important;
+  }
+  .sb-cart-remove-btn:hover {
+    color: #b91c1c !important;
+  }
+  .sb-cart-price-cell {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    gap: 2px !important;
+    justify-content: center !important;
+  }
+  .sb-cart-old-price {
+    font-size: 13px !important;
+    color: #94a3b8 !important;
+    text-decoration: line-through !important;
+  }
+  .sb-cart-new-price {
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    color: #059669 !important;
+  }
+  .sb-cart-save-tag {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #059669 !important;
+    background: #ecfdf5 !important;
+    padding: 1px 6px !important;
+    border-radius: 4px !important;
+  }
+  .sb-total-savings-banner {
+    color: #059669 !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    margin-top: 6px !important;
+    text-align: right !important;
+    display: block !important;
   }
 </style>
 
 <script>
 (function() {
-  // Only execute cart merge logic on cart page or cart drawer
-  const isCartPage = window.location.pathname.includes('/cart');
-
-  function formatMoney(cents, currency) {
-    const amount = (cents / 100).toFixed(2);
-    return '$' + amount;
+  function formatMoney(cents) {
+    return '$' + (cents / 100).toFixed(2);
   }
 
-  async function processCartBundleMerger() {
+  async function renderOptionACart() {
     try {
       const res = await fetch('/cart.js');
       if (!res.ok) return;
@@ -93,8 +190,14 @@
       const groupKeys = Object.keys(groups);
       if (groupKeys.length === 0) return;
 
-      // Locate cart row DOM elements
-      // Matches Dawn, Sense, Refresh, OS 2.0 tables and standard cart themes
+      // Ensure discount code is applied in cart session
+      const sampleItemProps = groups[groupKeys[0]][0].item.properties || {};
+      const discountCode = sampleItemProps['_bundle_discount_code'] || window.SmartBundles?.discountCode || 'BUNDLE15';
+      if (discountCode) {
+        fetch('/discount/' + encodeURIComponent(discountCode)).catch(() => {});
+      }
+
+      // Find cart item rows
       const rowSelectors = [
         'tr.cart-item',
         '.cart-item',
@@ -120,7 +223,6 @@
       }
 
       let totalBundleSavingsCents = 0;
-      let activeDiscountCode = '';
 
       groupKeys.forEach(groupId => {
         const entries = groups[groupId];
@@ -130,9 +232,6 @@
         const firstItem = firstEntry.item;
         const props = firstItem.properties || {};
 
-        activeDiscountCode = props['_bundle_discount_code'] || activeDiscountCode;
-
-        // Calculate totals for this bundle
         let bundleOriginalCents = 0;
         entries.forEach(e => {
           bundleOriginalCents += (e.item.original_line_price || e.item.line_price);
@@ -144,93 +243,106 @@
         totalBundleSavingsCents += savingsCents;
 
         const bundleTitle = props['_bundle_title'] || ('Bundle: ' + entries.map(e => e.item.product_title).join(' + '));
-        const bundleIncludes = props['_bundle_components'] || entries.map(e => e.item.product_title).join(', ');
+        const bundleImage = props['_bundle_image'] || firstItem.image || 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png';
 
-        // 1. Transform the FIRST row into the merged bundle row
+        // Component chips
+        const chipsHtml = entries.map(e => `<span class="sb-cart-chip">• ${e.item.product_title}</span>`).join('');
+
+        // 1. TRANSFORM LEAD ROW WITH CLEAN OPTION A CARD
         const leadRow = rows[firstEntry.index];
         if (leadRow) {
-          leadRow.classList.add('smart-bundle-merged-row');
+          // Identify product cell (usually the first td or the main details div)
+          const productCell = leadRow.querySelector('td:first-child, .cart-item__details, td.cart-item__details') || leadRow.firstElementChild;
+          
+          if (productCell && !leadRow.classList.contains('sb-transformed')) {
+            leadRow.classList.add('sb-transformed');
+            
+            // Render Option A card inside the product cell
+            productCell.innerHTML = `
+              <div class="sb-cart-bundle-container">
+                <div class="sb-cart-img-wrap">
+                  <img src="${bundleImage}" alt="${bundleTitle}" class="sb-cart-img" />
+                </div>
+                <div class="sb-cart-content">
+                  <div class="sb-cart-header">
+                    <h3 class="sb-cart-title">${bundleTitle}</h3>
+                    <span class="sb-cart-badge">🏷️ ${discountNum}% OFF BUNDLE</span>
+                  </div>
+                  <div class="sb-cart-components-box">
+                    <div class="sb-cart-components-label">Included in this bundle:</div>
+                    <div class="sb-cart-components-list">
+                      ${chipsHtml}
+                    </div>
+                  </div>
+                  <button type="button" class="sb-cart-remove-btn" data-group-id="${groupId}">Remove Complete Bundle</button>
+                </div>
+              </div>
+            `;
 
-          // Update product title
-          const titleEl = leadRow.querySelector('.cart-item__name, .product-name, [data-cart-item-title], a[href*="/products/"]');
-          if (titleEl) {
-            titleEl.textContent = bundleTitle;
-            titleEl.style.fontWeight = '700';
-            titleEl.style.fontSize = '15px';
-            titleEl.style.color = '#1e293b';
-
-            // Add or update "Includes:" subtitle
-            let includesEl = leadRow.querySelector('.smart-bundle-cart-includes');
-            if (!includesEl) {
-              includesEl = document.createElement('div');
-              includesEl.className = 'smart-bundle-cart-includes';
-              titleEl.parentNode.insertBefore(includesEl, titleEl.nextSibling);
+            // Attach remove listener
+            const removeBtn = productCell.querySelector('.sb-cart-remove-btn');
+            if (removeBtn) {
+              removeBtn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                removeBtn.textContent = 'Removing bundle...';
+                const updates = {};
+                entries.forEach(entry => {
+                  updates[entry.item.key] = 0;
+                });
+                await fetch('/cart/update.js', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ updates })
+                });
+                window.location.reload();
+              });
             }
-            includesEl.innerHTML = '<strong>Includes:</strong> ' + bundleIncludes;
-
-            // Add bundle discount badge
-            let badgeEl = leadRow.querySelector('.smart-bundle-cart-badge');
-            if (!badgeEl) {
-              badgeEl = document.createElement('div');
-              badgeEl.className = 'smart-bundle-cart-badge';
-              includesEl.parentNode.insertBefore(badgeEl, includesEl.nextSibling);
-            }
-            badgeEl.textContent = discountNum + '% BUNDLE SAVINGS APPLIED';
           }
 
-          // Update price in lead row
-          const priceEl = leadRow.querySelector('.cart-item__price, [data-cart-item-line-price], .price, td.cart-item__totals');
-          if (priceEl) {
-            priceEl.innerHTML = `
-              <div class="smart-bundle-cart-price-box">
-                <s>${formatMoney(bundleOriginalCents)}</s>
-                <span>${formatMoney(bundleDiscountedCents)}</span>
+          // Update price in lead row (usually last td or totals cell)
+          const priceCell = leadRow.querySelector('td:last-child, td.cart-item__totals, .cart-item__price, [data-cart-item-line-price]');
+          if (priceCell) {
+            priceCell.innerHTML = `
+              <div class="sb-cart-price-cell">
+                <s class="sb-cart-old-price">${formatMoney(bundleOriginalCents)}</s>
+                <span class="sb-cart-new-price">${formatMoney(bundleDiscountedCents)}</span>
+                <span class="sb-cart-save-tag">Save ${formatMoney(savingsCents)}</span>
               </div>
             `;
           }
 
-          // Intercept remove button to remove entire bundle together
-          const removeBtn = leadRow.querySelector('cart-remove-button a, .cart-remove, a[href*="/cart/change"], [data-cart-remove]');
-          if (removeBtn) {
-            removeBtn.addEventListener('click', async function(e) {
-              e.preventDefault();
-              e.stopPropagation();
-              const updates = {};
-              entries.forEach(entry => {
-                updates[entry.item.key] = 0;
-              });
-              await fetch('/cart/update.js', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ updates })
-              });
-              window.location.reload();
-            }, { once: true });
+          // Lock quantity column to 1
+          const qtyCell = leadRow.querySelector('td:nth-child(2), .cart-item__quantity');
+          if (qtyCell) {
+            const input = qtyCell.querySelector('input');
+            if (input) {
+              input.value = 1;
+              input.readOnly = true;
+            }
           }
         }
 
-        // 2. Hide all remaining rows in this bundle group
+        // 2. HIDE ALL SECONDARY ROWS IN THIS BUNDLE
         for (let i = 1; i < entries.length; i++) {
           const subRow = rows[entries[i].index];
           if (subRow) {
             subRow.style.setProperty('display', 'none', 'important');
-            subRow.classList.add('smart-bundle-hidden-row');
           }
         }
       });
 
-      // 3. Update Cart Total and Subtotal in Summary Box
+      // 3. UPDATE TOTAL IN CART SUMMARY
       if (totalBundleSavingsCents > 0) {
-        const discountedCartTotalCents = cart.total_price - totalBundleSavingsCents;
-
-        // Search for total/subtotal price elements
+        const discountedTotalCents = Math.max(0, cart.total_price - totalBundleSavingsCents);
         const totalSelectors = [
           '.totals__subtotal-value',
           '[data-cart-subtotal]',
           '.cart-subtotal',
           '.cart__subtotal-value',
           '.cart-total-price',
-          '.cart__total'
+          '.cart__total',
+          '.cart__subtotal'
         ];
 
         let totalEl = null;
@@ -242,50 +354,46 @@
         if (totalEl) {
           totalEl.innerHTML = `
             <s style="color: #94a3b8; font-size: 14px; margin-right: 8px; font-weight: normal;">${formatMoney(cart.total_price)}</s>
-            <span style="color: #059669; font-weight: 800;">${formatMoney(discountedCartTotalCents)}</span>
+            <span style="color: #059669; font-weight: 800; font-size: 18px;">${formatMoney(discountedTotalCents)}</span>
           `;
 
-          let savingsEl = document.querySelector('.smart-bundle-total-savings');
-          if (!savingsEl) {
-            savingsEl = document.createElement('div');
-            savingsEl.className = 'smart-bundle-total-savings';
-            totalEl.parentNode.appendChild(savingsEl);
+          let savingsBanner = document.querySelector('.sb-total-savings-banner');
+          if (!savingsBanner) {
+            savingsBanner = document.createElement('div');
+            savingsBanner.className = 'sb-total-savings-banner';
+            totalEl.parentNode.appendChild(savingsBanner);
           }
-          savingsEl.innerHTML = '🎉 Bundle discount applied (-' + formatMoney(totalBundleSavingsCents) + ')';
+          savingsBanner.innerHTML = '🎉 Bundle Savings Applied: -' + formatMoney(totalBundleSavingsCents);
         }
 
-        // 4. Ensure Checkout button carries discount to checkout page
+        // 4. CHECKOUT BUTTON INTERCEPTION
         const checkoutBtns = document.querySelectorAll(
           'button[name="checkout"], input[name="checkout"], #checkout, a[href*="/checkout"], .cart__checkout-button'
         );
-
         checkoutBtns.forEach(btn => {
           btn.addEventListener('click', async function(e) {
-            if (activeDiscountCode) {
+            if (discountCode) {
               e.preventDefault();
               try {
-                await fetch('/discount/' + encodeURIComponent(activeDiscountCode));
+                await fetch('/discount/' + encodeURIComponent(discountCode));
               } catch(err) {}
-              window.location.href = '/checkout?discount=' + encodeURIComponent(activeDiscountCode);
+              window.location.href = '/checkout?discount=' + encodeURIComponent(discountCode);
             }
           });
         });
       }
-    } catch (err) {
-      console.error('Error enhancing bundle cart display:', err);
+    } catch(err) {
+      console.error('Error applying Option A cart layout:', err);
     }
   }
 
+  // Execute immediately and on DOM load
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(processCartBundleMerger, 100);
-    });
+    document.addEventListener('DOMContentLoaded', () => setTimeout(renderOptionACart, 80));
   } else {
-    setTimeout(processCartBundleMerger, 100);
+    setTimeout(renderOptionACart, 80);
   }
-
-  // Also re-run on dynamic cart changes
-  document.addEventListener('cart:updated', processCartBundleMerger);
+  document.addEventListener('cart:updated', renderOptionACart);
 })();
 </script>
 
