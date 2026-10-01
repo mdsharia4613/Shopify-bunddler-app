@@ -11,7 +11,16 @@ const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
   apiVersion: ApiVersion.July26,
-  scopes: process.env.SCOPES?.split(","),
+  scopes: Array.from(new Set([
+    ...(process.env.SCOPES ? process.env.SCOPES.split(",") : []),
+    "write_products",
+    "write_metaobjects",
+    "write_metaobject_definitions",
+    "write_cart_transforms",
+    "read_cart_transforms",
+    "write_discounts",
+    "read_discounts"
+  ])).filter(Boolean),
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
