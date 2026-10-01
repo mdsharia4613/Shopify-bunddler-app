@@ -1,0 +1,41 @@
+query CartTransformRunInput {
+  cart {
+    lines {
+      id
+      quantity
+      cost {
+        amountPerQuantity {
+          amount
+        }
+      }
+      merchandise {
+        ... on ProductVariant {
+          id
+          title
+          product {
+            id
+            title
+          }
+        }
+      }
+      bundleGroup: attribute(key: "_bundle_group") {
+        value
+      }
+      bundleTitle: attribute(key: "_bundle_title") {
+        value
+      }
+      bundleDiscount: attribute(key: "_bundle_discount") {
+        value
+      }
+      bundleComponents: attribute(key: "_bundle_components") {
+        value
+      }
+      bundleImage: attribute(key: "_bundle_image") {
+        value
+      }
+      bundleParentVariantId: attribute(key: "_bundle_parent_variant_id") {
+        value
+      }
+    }
+  }
+}

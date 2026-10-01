@@ -1,11 +1,292 @@
 {% comment %}
   Smart Bundles Core App Embed
-  Enables or Disables the entire Smart Bundles engine globally across the store
+  Enables global bundle management, cart merging into single row, and checkout discount handling
 {% endcomment %}
 
 <script>
   window.SmartBundles = window.SmartBundles || {};
   window.SmartBundles.enabled = true;
+  {% if shop.metafields.smart_bundles.active_bundle != blank %}
+    try {
+      window.SmartBundles.config = {{ shop.metafields.smart_bundles.active_bundle }};
+      window.SmartBundles.discountCode = window.SmartBundles.config.discountCode || ('BUNDLE' + (window.SmartBundles.config.discountPercent || 15));
+      window.SmartBundles.parentVariantId = window.SmartBundles.config.parentVariantId || '';
+    } catch(e) {}
+  {% endif %}
+</script>
+
+<style>
+  .smart-bundle-cart-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin-top: 6px;
+  }
+  .smart-bundle-cart-includes {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+  .smart-bundle-cart-price-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .smart-bundle-cart-price-box s {
+    color: #94a3b8;
+    font-size: 13px;
+    text-decoration: line-through;
+  }
+  .smart-bundle-cart-price-box span {
+    color: #059669;
+    font-weight: 800;
+    font-size: 16px;
+  }
+  .smart-bundle-total-savings {
+    color: #059669;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+</style>
+
+<script>
+(function() {
+  // Only execute cart merge logic on cart page or cart drawer
+  const isCartPage = window.location.pathname.includes('/cart');
+
+  function formatMoney(cents, currency) {
+    const amount = (cents / 100).toFixed(2);
+    return '$' + amount;
+  }
+
+  async function processCartBundleMerger() {
+    try {
+      const res = await fetch('/cart.js');
+      if (!res.ok) return;
+      const cart = await res.json();
+      if (!cart || !cart.items || cart.items.length === 0) return;
+
+      // Group items by _bundle_group
+      const groups = {};
+      cart.items.forEach((item, index) => {
+        const props = item.properties || {};
+        const groupId = props['_bundle_group'];
+        if (groupId) {
+          if (!groups[groupId]) groups[groupId] = [];
+          groups[groupId].push({ item, index });
+        }
+      });
+
+      const groupKeys = Object.keys(groups);
+      if (groupKeys.length === 0) return;
+
+      // Locate cart row DOM elements
+      // Matches Dawn, Sense, Refresh, OS 2.0 tables and standard cart themes
+      const rowSelectors = [
+        'tr.cart-item',
+        '.cart-item',
+        '[data-cart-item]',
+        'table.cart-items tbody tr',
+        '.cart__items tr',
+        '.cart-table__row'
+      ];
+      
+      let rows = [];
+      for (const sel of rowSelectors) {
+        const found = document.querySelectorAll(sel);
+        if (found && found.length >= cart.items.length) {
+          rows = Array.from(found);
+          break;
+        }
+      }
+      if (rows.length === 0) {
+        const tableRows = document.querySelectorAll('table tbody tr');
+        if (tableRows && tableRows.length >= cart.items.length) {
+          rows = Array.from(tableRows);
+        }
+      }
+
+      let totalBundleSavingsCents = 0;
+      let activeDiscountCode = '';
+
+      groupKeys.forEach(groupId => {
+        const entries = groups[groupId];
+        if (entries.length < 2) return;
+
+        const firstEntry = entries[0];
+        const firstItem = firstEntry.item;
+        const props = firstItem.properties || {};
+
+        activeDiscountCode = props['_bundle_discount_code'] || activeDiscountCode;
+
+        // Calculate totals for this bundle
+        let bundleOriginalCents = 0;
+        entries.forEach(e => {
+          bundleOriginalCents += (e.item.original_line_price || e.item.line_price);
+        });
+
+        const discountNum = parseFloat(props['_bundle_discount_num'] || '15');
+        const bundleDiscountedCents = Math.round(bundleOriginalCents * (1 - (discountNum / 100)));
+        const savingsCents = bundleOriginalCents - bundleDiscountedCents;
+        totalBundleSavingsCents += savingsCents;
+
+        const bundleTitle = props['_bundle_title'] || ('Bundle: ' + entries.map(e => e.item.product_title).join(' + '));
+        const bundleIncludes = props['_bundle_components'] || entries.map(e => e.item.product_title).join(', ');
+
+        // 1. Transform the FIRST row into the merged bundle row
+        const leadRow = rows[firstEntry.index];
+        if (leadRow) {
+          leadRow.classList.add('smart-bundle-merged-row');
+
+          // Update product title
+          const titleEl = leadRow.querySelector('.cart-item__name, .product-name, [data-cart-item-title], a[href*="/products/"]');
+          if (titleEl) {
+            titleEl.textContent = bundleTitle;
+            titleEl.style.fontWeight = '700';
+            titleEl.style.fontSize = '15px';
+            titleEl.style.color = '#1e293b';
+
+            // Add or update "Includes:" subtitle
+            let includesEl = leadRow.querySelector('.smart-bundle-cart-includes');
+            if (!includesEl) {
+              includesEl = document.createElement('div');
+              includesEl.className = 'smart-bundle-cart-includes';
+              titleEl.parentNode.insertBefore(includesEl, titleEl.nextSibling);
+            }
+            includesEl.innerHTML = '<strong>Includes:</strong> ' + bundleIncludes;
+
+            // Add bundle discount badge
+            let badgeEl = leadRow.querySelector('.smart-bundle-cart-badge');
+            if (!badgeEl) {
+              badgeEl = document.createElement('div');
+              badgeEl.className = 'smart-bundle-cart-badge';
+              includesEl.parentNode.insertBefore(badgeEl, includesEl.nextSibling);
+            }
+            badgeEl.textContent = discountNum + '% BUNDLE SAVINGS APPLIED';
+          }
+
+          // Update price in lead row
+          const priceEl = leadRow.querySelector('.cart-item__price, [data-cart-item-line-price], .price, td.cart-item__totals');
+          if (priceEl) {
+            priceEl.innerHTML = `
+              <div class="smart-bundle-cart-price-box">
+                <s>${formatMoney(bundleOriginalCents)}</s>
+                <span>${formatMoney(bundleDiscountedCents)}</span>
+              </div>
+            `;
+          }
+
+          // Intercept remove button to remove entire bundle together
+          const removeBtn = leadRow.querySelector('cart-remove-button a, .cart-remove, a[href*="/cart/change"], [data-cart-remove]');
+          if (removeBtn) {
+            removeBtn.addEventListener('click', async function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              const updates = {};
+              entries.forEach(entry => {
+                updates[entry.item.key] = 0;
+              });
+              await fetch('/cart/update.js', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ updates })
+              });
+              window.location.reload();
+            }, { once: true });
+          }
+        }
+
+        // 2. Hide all remaining rows in this bundle group
+        for (let i = 1; i < entries.length; i++) {
+          const subRow = rows[entries[i].index];
+          if (subRow) {
+            subRow.style.setProperty('display', 'none', 'important');
+            subRow.classList.add('smart-bundle-hidden-row');
+          }
+        }
+      });
+
+      // 3. Update Cart Total and Subtotal in Summary Box
+      if (totalBundleSavingsCents > 0) {
+        const discountedCartTotalCents = cart.total_price - totalBundleSavingsCents;
+
+        // Search for total/subtotal price elements
+        const totalSelectors = [
+          '.totals__subtotal-value',
+          '[data-cart-subtotal]',
+          '.cart-subtotal',
+          '.cart__subtotal-value',
+          '.cart-total-price',
+          '.cart__total'
+        ];
+
+        let totalEl = null;
+        for (const sel of totalSelectors) {
+          const el = document.querySelector(sel);
+          if (el) { totalEl = el; break; }
+        }
+
+        if (totalEl) {
+          totalEl.innerHTML = `
+            <s style="color: #94a3b8; font-size: 14px; margin-right: 8px; font-weight: normal;">${formatMoney(cart.total_price)}</s>
+            <span style="color: #059669; font-weight: 800;">${formatMoney(discountedCartTotalCents)}</span>
+          `;
+
+          let savingsEl = document.querySelector('.smart-bundle-total-savings');
+          if (!savingsEl) {
+            savingsEl = document.createElement('div');
+            savingsEl.className = 'smart-bundle-total-savings';
+            totalEl.parentNode.appendChild(savingsEl);
+          }
+          savingsEl.innerHTML = '🎉 Bundle discount applied (-' + formatMoney(totalBundleSavingsCents) + ')';
+        }
+
+        // 4. Ensure Checkout button carries discount to checkout page
+        const checkoutBtns = document.querySelectorAll(
+          'button[name="checkout"], input[name="checkout"], #checkout, a[href*="/checkout"], .cart__checkout-button'
+        );
+
+        checkoutBtns.forEach(btn => {
+          btn.addEventListener('click', async function(e) {
+            if (activeDiscountCode) {
+              e.preventDefault();
+              try {
+                await fetch('/discount/' + encodeURIComponent(activeDiscountCode));
+              } catch(err) {}
+              window.location.href = '/checkout?discount=' + encodeURIComponent(activeDiscountCode);
+            }
+          });
+        });
+      }
+    } catch (err) {
+      console.error('Error enhancing bundle cart display:', err);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(processCartBundleMerger, 100);
+    });
+  } else {
+    setTimeout(processCartBundleMerger, 100);
+  }
+
+  // Also re-run on dynamic cart changes
+  document.addEventListener('cart:updated', processCartBundleMerger);
+})();
 </script>
 
 {% schema %}

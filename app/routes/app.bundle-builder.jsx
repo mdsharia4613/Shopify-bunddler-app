@@ -125,6 +125,101 @@ export const action = async ({ request }) => {
         const discountMatch = discount?.match(/(\d+)%/);
         const discountNum = parsed?.discountPercent || (discountMatch ? parseInt(discountMatch[1], 10) : 15);
 
+        const discountCode = `BUNDLE${discountNum}`;
+        let parentVariantId = "";
+
+        // 1. Ensure discount code exists in shop
+        try {
+            await admin.graphql(
+                `#graphql
+                mutation createBundleDiscount($basicCodeDiscount: DiscountCodeBasicInput!) {
+                    discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+                        codeDiscountNode {
+                            id
+                        }
+                        userErrors {
+                            field
+                            message
+                        }
+                    }
+                }`,
+                {
+                    variables: {
+                        basicCodeDiscount: {
+                            title: `${savedBundle.title} (${discountNum}% OFF)`,
+                            code: discountCode,
+                            startsAt: new Date().toISOString(),
+                            customerSelection: { all: true },
+                            customerGets: {
+                                value: { percentage: discountNum / 100.0 },
+                                items: { all: true }
+                            },
+                            appliesOncePerCustomer: false
+                        }
+                    }
+                }
+            );
+        } catch (discErr) {
+            console.log("Discount code check/create note:", discErr?.message);
+        }
+
+        // 2. Ensure bundle container parent product exists for cart transform
+        try {
+            const pRes = await admin.graphql(
+                `#graphql
+                query getBundleParent {
+                    products(first: 1, query: "handle:smart-bundle-parent") {
+                        edges {
+                            node {
+                                variants(first: 1) {
+                                    edges {
+                                        node {
+                                            id
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }`
+            );
+            const pData = await pRes.json();
+            const existingVar = pData.data?.products?.edges?.[0]?.node?.variants?.edges?.[0]?.node?.id;
+            if (existingVar) {
+                parentVariantId = existingVar;
+            } else {
+                const createRes = await admin.graphql(
+                    `#graphql
+                    mutation createBundleParentProduct($input: ProductInput!) {
+                        productCreate(input: $input) {
+                            product {
+                                variants(first: 1) {
+                                    edges {
+                                        node {
+                                            id
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }`,
+                    {
+                        variables: {
+                            input: {
+                                title: "Smart Bundle Container",
+                                handle: "smart-bundle-parent",
+                                status: "ACTIVE"
+                            }
+                        }
+                    }
+                );
+                const createData = await createRes.json();
+                parentVariantId = createData.data?.productCreate?.product?.variants?.edges?.[0]?.node?.id || "";
+            }
+        } catch (pErr) {
+            console.log("Bundle parent product note:", pErr?.message);
+        }
+
         const shopRes = await admin.graphql(`query { shop { id } }`);
         const shopJson = await shopRes.json();
         const shopId = shopJson.data?.shop?.id;
@@ -153,6 +248,8 @@ export const action = async ({ request }) => {
                                     title: savedBundle.title,
                                     discountPercent: discountNum,
                                     discountSummary: savedBundle.discount,
+                                    discountCode: discountCode,
+                                    parentVariantId: parentVariantId,
                                     collectionRows: parsed?.collectionRows || [],
                                     updatedAt: new Date().toISOString(),
                                 }),

@@ -684,24 +684,12 @@
 
     initBundle();
 
-    // Add to cart handler
+        // Add to cart handler with Cart Merge & Checkout Discount payload
     if (addBtn) {
       addBtn.addEventListener('click', async function() {
-        const items = [];
-        bundleSteps.forEach(s => {
-          if (s.selectedProduct && s.selectedProduct.variantId) {
-            items.push({
-              id: parseInt(s.selectedProduct.variantId, 10),
-              quantity: 1,
-              properties: {
-                '_bundle': 'Smart Multi-Collection Bundle',
-                '_discount': `${discountPercent}%`
-              }
-            });
-          }
-        });
-
-        if (items.length < bundleSteps.length) {
+        // Validation: Ensure all steps have a selected product
+        const missingSteps = bundleSteps.filter(s => !s.selectedProduct || !s.selectedProduct.variantId);
+        if (missingSteps.length > 0) {
           if (feedbackEl) {
             feedbackEl.className = 'smart-bundle-feedback error';
             feedbackEl.textContent = `Please pick a product from each of the ${bundleSteps.length} collections.`;
@@ -711,7 +699,45 @@
 
         addBtn.disabled = true;
         const btnText = addBtn.querySelector('.smart-bundle-btn-text');
-        if (btnText) btnText.textContent = 'Adding to cart...';
+        if (btnText) btnText.textContent = 'Adding bundle to cart...';
+
+        const bundleGroupId = 'bundle_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+        const titles = bundleSteps.map(s => s.selectedProduct.title);
+        const bundleTitle = 'Bundle: ' + titles.join(' + ');
+        const bundleIncludes = titles.join(', ');
+
+        let totalOriginalCents = 0;
+        bundleSteps.forEach(s => {
+          totalOriginalCents += (s.selectedProduct.price || 0);
+        });
+        const totalDiscountCents = Math.round(totalOriginalCents * (1 - (discountPercent / 100)));
+        const primaryImage = bundleSteps[0]?.selectedProduct?.imageUrl || '';
+        const parentVariantId = window.SmartBundles?.parentVariantId || '';
+        const discountCode = window.SmartBundles?.discountCode || ('BUNDLE' + discountPercent);
+
+        const items = [];
+        bundleSteps.forEach((s, idx) => {
+          items.push({
+            id: parseInt(s.selectedProduct.variantId, 10),
+            quantity: 1,
+            properties: {
+              '_bundle': 'Smart Multi-Collection Bundle',
+              '_bundle_group': bundleGroupId,
+              '_bundle_title': bundleTitle,
+              '_bundle_components': bundleIncludes,
+              '_bundle_discount': `${discountPercent}%`,
+              '_bundle_discount_num': discountPercent.toString(),
+              '_bundle_original_cents': totalOriginalCents.toString(),
+              '_bundle_discounted_cents': totalDiscountCents.toString(),
+              '_bundle_image': primaryImage,
+              '_bundle_parent_variant_id': parentVariantId,
+              '_bundle_discount_code': discountCode,
+              '_bundle_index': idx.toString(),
+              'Bundle': bundleTitle,
+              'Includes': bundleIncludes
+            }
+          });
+        });
 
         try {
           const res = await fetch('/cart/add.js', {
@@ -721,9 +747,15 @@
           });
 
           if (res.ok) {
+            // Auto-apply discount code for checkout
+            if (discountCode) {
+              try {
+                await fetch('/discount/' + encodeURIComponent(discountCode));
+              } catch (e) {}
+            }
             if (feedbackEl) {
               feedbackEl.className = 'smart-bundle-feedback success';
-              feedbackEl.textContent = '✓ All bundle products added to cart!';
+              feedbackEl.textContent = '🎉 Bundle successfully added to cart!';
             }
             setTimeout(() => { window.location.href = '/cart'; }, 500);
           } else {
