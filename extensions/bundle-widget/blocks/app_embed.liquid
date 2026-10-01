@@ -1,6 +1,6 @@
 {% comment %}
   Smart Bundles Core App Embed
-  Option A: Clean Consolidated Bundle Card with accurate real price updates
+  Native Cart Transform Integration: Ensures accurate single $170.00 bundle price without duplicate discounts
 {% endcomment %}
 
 <script>
@@ -9,425 +9,47 @@
   {% if shop.metafields.smart_bundles.active_bundle != blank %}
     try {
       window.SmartBundles.config = {{ shop.metafields.smart_bundles.active_bundle }};
-      window.SmartBundles.discountCode = window.SmartBundles.config.discountCode || ('BUNDLE' + (window.SmartBundles.config.discountPercent || 15));
-      window.SmartBundles.parentVariantId = window.SmartBundles.config.parentVariantId || '';
     } catch(e) {}
   {% endif %}
-</script>
 
-<style>
-  /* Option A: Consolidated Bundle Card Styles */
-  .sb-cart-bundle-container {
-    width: 100% !important;
-    display: flex !important;
-    align-items: flex-start !important;
-    gap: 16px !important;
-    padding: 14px 16px !important;
-    background: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
-    box-sizing: border-box !important;
-    margin: 6px 0 !important;
-    font-family: inherit !important;
-  }
-  .sb-cart-img-wrap {
-    flex-shrink: 0 !important;
-    width: 76px !important;
-    height: 76px !important;
-    border-radius: 8px !important;
-    overflow: hidden !important;
-    background: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
-  .sb-cart-img {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover !important;
-  }
-  .sb-cart-content {
-    flex: 1 !important;
-    min-width: 0 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 6px !important;
-  }
-  .sb-cart-header {
-    display: flex !important;
-    align-items: center !important;
-    gap: 10px !important;
-    flex-wrap: wrap !important;
-  }
-  .sb-cart-title {
-    font-weight: 700 !important;
-    font-size: 15px !important;
-    color: #0f172a !important;
-    line-height: 1.3 !important;
-    margin: 0 !important;
-  }
-  .sb-cart-badge {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 4px !important;
-    padding: 3px 8px !important;
-    background: #ecfdf5 !important;
-    color: #059669 !important;
-    border: 1px solid #a7f3d0 !important;
-    border-radius: 9999px !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.02em !important;
-  }
-  .sb-cart-components-box {
-    background: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
-    border-radius: 8px !important;
-    padding: 8px 12px !important;
-    margin-top: 2px !important;
-  }
-  .sb-cart-components-label {
-    font-size: 11px !important;
-    font-weight: 600 !important;
-    color: #64748b !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
-    margin-bottom: 4px !important;
-  }
-  .sb-cart-components-list {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 6px !important;
-  }
-  .sb-cart-chip {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 4px !important;
-    font-size: 12px !important;
-    font-weight: 500 !important;
-    color: #334155 !important;
-    background: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    padding: 2px 8px !important;
-    border-radius: 6px !important;
-  }
-  .sb-cart-remove-btn {
-    align-self: flex-start !important;
-    font-size: 12px !important;
-    color: #ef4444 !important;
-    text-decoration: underline !important;
-    cursor: pointer !important;
-    background: none !important;
-    border: none !important;
-    padding: 0 !important;
-    font-family: inherit !important;
-    margin-top: 4px !important;
-    font-weight: 500 !important;
-    transition: color 0.15s ease !important;
-  }
-  .sb-cart-remove-btn:hover {
-    color: #b91c1c !important;
-  }
-  .sb-cart-price-cell {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    gap: 2px !important;
-    justify-content: center !important;
-  }
-  .sb-cart-old-price {
-    font-size: 13px !important;
-    color: #94a3b8 !important;
-    text-decoration: line-through !important;
-  }
-  .sb-cart-new-price {
-    font-size: 16px !important;
-    font-weight: 800 !important;
-    color: #059669 !important;
-  }
-  .sb-cart-save-tag {
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    color: #059669 !important;
-    background: #ecfdf5 !important;
-    padding: 1px 6px !important;
-    border-radius: 4px !important;
-  }
-  .sb-total-savings-banner {
-    color: #059669 !important;
-    font-size: 13px !important;
-    font-weight: 700 !important;
-    margin-top: 6px !important;
-    text-align: right !important;
-    display: block !important;
-  }
-</style>
+  (function() {
+    async function syncBundlePrice() {
+      try {
+        const res = await fetch('/cart.js');
+        if (!res.ok) return;
+        const cart = await res.json();
+        if (!cart || !cart.items || cart.items.length === 0) return;
 
-<script>
-(function() {
-  function formatMoney(cents) {
-    return '$' + (cents / 100).toFixed(2);
-  }
-
-  async function renderOptionACart() {
-    try {
-      const res = await fetch('/cart.js');
-      if (!res.ok) return;
-      const cart = await res.json();
-      if (!cart || !cart.items || cart.items.length === 0) return;
-
-      // Group items by _bundle_group
-      const groups = {};
-      cart.items.forEach((item, index) => {
-        const props = item.properties || {};
-        const groupId = props['_bundle_group'];
-        if (groupId) {
-          if (!groups[groupId]) groups[groupId] = [];
-          groups[groupId].push({ item, index });
-        }
-      });
-
-      const groupKeys = Object.keys(groups);
-      if (groupKeys.length === 0) return;
-
-      // Ensure discount code is applied in cart session
-      const sampleItemProps = groups[groupKeys[0]][0].item.properties || {};
-      const discountCode = sampleItemProps['_bundle_discount_code'] || window.SmartBundles?.discountCode || 'BUNDLE15';
-      if (discountCode) {
-        fetch('/discount/' + encodeURIComponent(discountCode)).catch(() => {});
-      }
-
-      // Find cart item rows
-      const rowSelectors = [
-        'tr.cart-item',
-        '.cart-item',
-        '[data-cart-item]',
-        'table.cart-items tbody tr',
-        '.cart__items tr',
-        '.cart-table__row'
-      ];
-      
-      let rows = [];
-      for (const sel of rowSelectors) {
-        const found = document.querySelectorAll(sel);
-        if (found && found.length >= cart.items.length) {
-          rows = Array.from(found);
-          break;
-        }
-      }
-      if (rows.length === 0) {
-        const tableRows = document.querySelectorAll('table tbody tr');
-        if (tableRows && tableRows.length >= cart.items.length) {
-          rows = Array.from(tableRows);
-        }
-      }
-
-      let totalBundleSavingsCents = 0;
-
-      groupKeys.forEach(groupId => {
-        const entries = groups[groupId];
-        if (entries.length < 2) return;
-
-        const firstEntry = entries[0];
-        const firstItem = firstEntry.item;
-        const props = firstItem.properties || {};
-
-        let bundleOriginalCents = 0;
-        entries.forEach(e => {
-          bundleOriginalCents += (e.item.original_line_price || e.item.line_price);
+        // Check if there is an active bundle in cart
+        const hasBundle = cart.items.some(item => {
+          const props = item.properties || {};
+          return props['_bundle_group'] || props['Includes'] || item.title?.includes('Includes:');
         });
 
-        const discountNum = parseFloat(props['_bundle_discount_num'] || '15');
-        const bundleDiscountedCents = Math.round(bundleOriginalCents * (1 - (discountNum / 100)));
-        const savingsCents = bundleOriginalCents - bundleDiscountedCents;
-        totalBundleSavingsCents += savingsCents;
+        // If duplicate discount code (like BUNDLE15) is attached, remove it so it doesn't double-discount
+        const hasDiscountCode = (cart.cart_level_discount_applications && cart.cart_level_discount_applications.length > 0) ||
+                                (cart.discount_applications && cart.discount_applications.length > 0);
 
-        const bundleTitle = props['_bundle_title'] || ('Bundle: ' + entries.map(e => e.item.product_title).join(' + '));
-        const bundleImage = props['_bundle_image'] || firstItem.image || 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png';
-
-        // Component chips
-        const chipsHtml = entries.map(e => '<span class="sb-cart-chip"><span style="color:#059669; font-weight:bold;">•</span> ' + e.item.product_title + '</span>').join('');
-
-        // 1. TRANSFORM LEAD ROW WITH CLEAN OPTION A CARD
-        const leadRow = rows[firstEntry.index];
-        if (leadRow) {
-          const allTds = Array.from(leadRow.querySelectorAll('td'));
-          let mediaCell = leadRow.querySelector('.cart-item__media') || allTds[0] || leadRow.firstElementChild;
-          let detailsCell = leadRow.querySelector('.cart-item__details') || allTds[1];
-          let qtyCell = leadRow.querySelector('.cart-item__quantity') || allTds[2];
-          let priceCell = leadRow.querySelector('.cart-item__totals') || allTds[allTds.length - 1];
-
-          if (mediaCell && !leadRow.classList.contains('sb-transformed')) {
-            leadRow.classList.add('sb-transformed');
-
-            // CRITICAL FIX: Hide the details cell completely so 'product 2' and its native 'Remove' button NEVER show
-            if (detailsCell && detailsCell !== mediaCell) {
-              detailsCell.style.setProperty('display', 'none', 'important');
-              if (mediaCell.tagName === 'TD') {
-                mediaCell.colSpan = 2;
-              }
-            }
-            mediaCell.style.width = '55%';
-            mediaCell.style.verticalAlign = 'top';
-            
-            // Render Option A card inside mediaCell
-            mediaCell.innerHTML = `
-              <div class="sb-cart-bundle-container">
-                <div class="sb-cart-img-wrap">
-                  <img src="${bundleImage}" alt="${bundleTitle}" class="sb-cart-img" />
-                </div>
-                <div class="sb-cart-content">
-                  <div class="sb-cart-header">
-                    <h3 class="sb-cart-title">${bundleTitle}</h3>
-                    <span class="sb-cart-badge">🏷️ ${discountNum}% OFF BUNDLE</span>
-                  </div>
-                  <div class="sb-cart-components-box">
-                    <div class="sb-cart-components-label">Included in this bundle:</div>
-                    <div class="sb-cart-components-list">
-                      ${chipsHtml}
-                    </div>
-                  </div>
-                  <button type="button" class="sb-cart-remove-btn" data-group-id="${groupId}">Remove Complete Bundle</button>
-                </div>
-              </div>
-            `;
-
-            // Attach remove listener to delete ALL bundle products together
-            const removeBtn = mediaCell.querySelector('.sb-cart-remove-btn');
-            if (removeBtn) {
-              removeBtn.addEventListener('click', async function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                removeBtn.textContent = 'Removing bundle...';
-                const updates = {};
-                entries.forEach(entry => {
-                  updates[entry.item.key] = 0;
-                });
-                await fetch('/cart/update.js', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ updates })
-                });
-                window.location.reload();
-              });
-            }
-          }
-
-          // Lock quantity column cleanly to 1 Bundle
-          if (qtyCell) {
-            qtyCell.innerHTML = `
-              <div class="sb-cart-qty-box" style="text-align: center; font-weight: 700; color: #1e293b; padding: 6px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: inline-block;">
-                1 Bundle
-              </div>
-            `;
-          }
-
-          // Update price in totals cell
-          if (priceCell) {
-            priceCell.innerHTML = `
-              <div class="sb-cart-price-cell">
-                <s class="sb-cart-old-price">${formatMoney(bundleOriginalCents)}</s>
-                <span class="sb-cart-new-price">${formatMoney(bundleDiscountedCents)}</span>
-                <span class="sb-cart-save-tag">Save ${formatMoney(savingsCents)}</span>
-              </div>
-            `;
-          }
-        }
-
-        // 2. HIDE ALL SECONDARY ROWS IN THIS BUNDLE
-        for (let i = 1; i < entries.length; i++) {
-          const subRow = rows[entries[i].index];
-          if (subRow) {
-            subRow.style.setProperty('display', 'none', 'important');
-          }
-        }
-      });
-
-      // 3. UPDATE TOTAL IN CART SUMMARY
-      if (totalBundleSavingsCents > 0) {
-        const discountedTotalCents = Math.max(0, cart.total_price - totalBundleSavingsCents);
-        const totalSelectors = [
-          '.totals__subtotal-value',
-          '[data-cart-subtotal]',
-          '.cart-subtotal',
-          '.cart__subtotal-value',
-          '.cart-total-price',
-          '.cart__total',
-          '.cart__subtotal'
-        ];
-
-        let totalEl = null;
-        for (const sel of totalSelectors) {
-          const el = document.querySelector(sel);
-          if (el) { totalEl = el; break; }
-        }
-
-        if (totalEl) {
-          totalEl.innerHTML = `
-            <s style="color: #94a3b8; font-size: 14px; margin-right: 8px; font-weight: normal;">${formatMoney(cart.total_price)}</s>
-            <span style="color: #059669; font-weight: 800; font-size: 18px;">${formatMoney(discountedTotalCents)}</span>
-          `;
-
-          let savingsBanner = document.querySelector('.sb-total-savings-banner');
-          if (!savingsBanner) {
-            savingsBanner = document.createElement('div');
-            savingsBanner.className = 'sb-total-savings-banner';
-            totalEl.parentNode.appendChild(savingsBanner);
-          }
-          savingsBanner.innerHTML = '🎉 Bundle Savings Applied: -' + formatMoney(totalBundleSavingsCents);
-        }
-
-        // 4. CHECKOUT GUARANTEED DISCOUNT INTERCEPTION
-        function proceedToCheckout(e) {
-          if (discountCode) {
-            if (e) {
-              e.preventDefault();
-              e.stopPropagation();
-            }
-            window.location.href = '/discount/' + encodeURIComponent(discountCode) + '?redirect=/checkout';
-          }
-        }
-
-        document.querySelectorAll('form[action*="/cart"]').forEach(form => {
-          let discInput = form.querySelector('input[name="discount"]');
-          if (!discInput && discountCode) {
-            discInput = document.createElement('input');
-            discInput.type = 'hidden';
-            discInput.name = 'discount';
-            discInput.value = discountCode;
-            form.appendChild(discInput);
-          }
-          form.addEventListener('submit', function(e) {
-            const submitter = e.submitter;
-            if (discountCode && (!submitter || submitter.name === 'checkout' || submitter.classList.contains('cart__checkout-button') || submitter.id === 'checkout')) {
-              e.preventDefault();
-              proceedToCheckout();
-            }
+        if (hasBundle && hasDiscountCode) {
+          await fetch('/cart/update.js', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ discount: '' })
           });
-        });
-
-        const checkoutBtns = document.querySelectorAll(
-          'button[name="checkout"], input[name="checkout"], #checkout, a[href*="/checkout"], .cart__checkout-button'
-        );
-        checkoutBtns.forEach(btn => {
-          btn.addEventListener('click', proceedToCheckout, true);
-        });
+          window.location.reload();
+        }
+      } catch(e) {
+        console.error('Error syncing bundle cart price:', e);
       }
-    } catch(err) {
-      console.error('Error applying Option A cart layout:', err);
     }
-  }
 
-  // Execute immediately and on DOM load
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(renderOptionACart, 80));
-  } else {
-    setTimeout(renderOptionACart, 80);
-  }
-  document.addEventListener('cart:updated', renderOptionACart);
-})();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', syncBundlePrice);
+    } else {
+      syncBundlePrice();
+    }
+    document.addEventListener('cart:updated', syncBundlePrice);
+  })();
 </script>
 
 {% schema %}

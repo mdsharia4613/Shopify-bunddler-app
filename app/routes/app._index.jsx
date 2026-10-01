@@ -6,68 +6,8 @@ import db from "../db.server";
 export const loader = async ({ request }) => {
   const { session, admin } = await authenticate.admin(request);
 
-  // Automatically ensure BUNDLE15 discount code and Automatic Discount exist in store
-  try {
-    await admin.graphql(
-      `#graphql
-      mutation createBundle15Discount($basicCodeDiscount: DiscountCodeBasicInput!) {
-        discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
-          codeDiscountNode {
-            id
-          }
-          userErrors {
-            field
-            message
-          }
-        }
-      }`,
-      {
-        variables: {
-          basicCodeDiscount: {
-            title: "Smart Bundle 15% OFF",
-            code: "BUNDLE15",
-            startsAt: new Date().toISOString(),
-            customerSelection: { all: true },
-            customerGets: {
-              value: { percentage: 0.15 },
-              items: { all: true }
-            },
-            appliesOncePerCustomer: false
-          }
-        }
-      }
-    );
-  } catch (e) {}
-
-  try {
-    await admin.graphql(
-      `#graphql
-      mutation createAutoDiscount($automaticBasicDiscount: DiscountAutomaticBasicInput!) {
-        discountAutomaticBasicCreate(automaticBasicDiscount: $automaticBasicDiscount) {
-          automaticDiscountNode {
-            id
-          }
-          userErrors {
-            field
-            message
-          }
-        }
-      }`,
-      {
-        variables: {
-          automaticBasicDiscount: {
-            title: "Smart Multi-Collection Bundle 15% OFF",
-            startsAt: new Date().toISOString(),
-            customerSelection: { all: true },
-            customerGets: {
-              value: { percentage: 0.15 },
-              items: { all: true }
-            }
-          }
-        }
-      }
-    );
-  } catch (e) {}
+  // Cart Transform (linesMerge) natively handles the 15% bundle discount directly on the line item.
+  // We do not add a duplicate discount code on top, ensuring the final price is exactly $170.00.
 
   // Automatically activate Cart Transform & Bundle Discount Functions
   try {

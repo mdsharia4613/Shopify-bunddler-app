@@ -745,12 +745,7 @@
           });
 
           if (res.ok) {
-            // Auto-apply discount code for checkout
-            if (discountCode) {
-              try {
-                await fetch('/discount/' + encodeURIComponent(discountCode));
-              } catch (e) {}
-            }
+
             if (feedbackEl) {
               feedbackEl.className = 'smart-bundle-feedback success';
               feedbackEl.textContent = '🎉 Bundle successfully added to cart!';
