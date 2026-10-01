@@ -25,6 +25,7 @@ export const loader = async ({ request }) => {
             node {
               id
               title
+              handle
               productsCount {
                 count
               }
@@ -37,6 +38,7 @@ export const loader = async ({ request }) => {
     const collections = colJson.data?.collections?.edges?.map((e) => ({
         id: e.node.id,
         title: e.node.title,
+        handle: e.node.handle,
         count: e.node.productsCount?.count || 0,
     })) || [
             { id: "col-1", title: "Collection 1", count: 2 },
@@ -151,6 +153,7 @@ export const action = async ({ request }) => {
                                     title: savedBundle.title,
                                     discountPercent: discountNum,
                                     discountSummary: savedBundle.discount,
+                                    collectionRows: parsed?.collectionRows || [],
                                     updatedAt: new Date().toISOString(),
                                 }),
                             },
@@ -177,8 +180,22 @@ export default function BundleBuilder() {
     let initialDiscount = 15;
     let initialTitle = existingBundle?.title || "Multi-Collection Step Bundle";
     let initialRows = [
-        { id: 1, collectionId: collections[0]?.id || "", selectionType: "all", selectedProducts: [] },
-        { id: 2, collectionId: collections[1]?.id || "", selectionType: "all", selectedProducts: [] },
+        { 
+            id: 1, 
+            collectionId: collections[0]?.id || "", 
+            collectionTitle: collections[0]?.title || "", 
+            collectionHandle: collections[0]?.handle || "", 
+            selectionType: "all", 
+            selectedProducts: [] 
+        },
+        { 
+            id: 2, 
+            collectionId: collections[1]?.id || collections[0]?.id || "", 
+            collectionTitle: collections[1]?.title || collections[0]?.title || "", 
+            collectionHandle: collections[1]?.handle || collections[0]?.handle || "", 
+            selectionType: "all", 
+            selectedProducts: [] 
+        },
     ];
 
     if (existingBundle) {

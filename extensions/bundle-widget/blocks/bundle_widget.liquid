@@ -1,25 +1,7 @@
 {% comment %}
-  Smart Multi-Collection Bundle Widget
-  Dynamic Golden Honey Box Style
+  Smart Multi-Collection Step Bundle Widget
+  Dynamic Collection Selection & Product Picker Modal
 {% endcomment %}
-
-{% assign main_product = product %}
-{% assign comp_product_1 = block.settings.bundle_product_1 %}
-{% assign comp_product_2 = block.settings.bundle_product_2 %}
-
-{% comment %}
-  If no complementary product is set in theme settings, fallback to first other product in store collections
-{% endcomment %}
-{% if comp_product_1 == blank and collections['all'].products.size > 1 %}
-  {% for p in collections['all'].products %}
-    {% if p.id != main_product.id and comp_product_1 == blank %}
-      {% assign comp_product_1 = p %}
-    {% elsif p.id != main_product.id and p.id != comp_product_1.id and comp_product_2 == blank %}
-      {% assign comp_product_2 = p %}
-      {% break %}
-    {% endif %}
-  {% endfor %}
-{% endif %}
 
 {% assign bundle_meta = app.metafields.smart_bundles.active_bundle.value %}
 {% assign display_heading = block.settings.heading %}
@@ -39,6 +21,7 @@
   id="smart-bundle-{{ block.id }}"
   data-discount="{{ display_discount }}"
   data-accent="{{ block.settings.accent_color }}"
+  data-bundle-id="{{ bundle_meta.id }}"
   style="
     --sb-accent: {{ block.settings.accent_color }};
     --sb-bg: {{ block.settings.bg_color }};
@@ -49,7 +32,7 @@
     <!-- Header -->
     <div class="smart-bundle-header">
       <div class="smart-bundle-title-wrap">
-        <span class="smart-bundle-sparkle">?</span>
+        <span class="smart-bundle-sparkle">✨</span>
         <h3 class="smart-bundle-title">{{ display_heading }}</h3>
       </div>
       <span class="smart-bundle-badge">Bundle & Save {{ display_discount }}%</span>
@@ -57,90 +40,17 @@
 
     <!-- Subtitle / Info -->
     <p class="smart-bundle-subtitle">
-      Buy together from complementary collections to unlock <strong>{{ display_discount }}% OFF</strong> instantly.
+      Pick 1 item from each collection below to unlock <strong>{{ display_discount }}% OFF</strong> instantly.
     </p>
 
-    <!-- Product Rows -->
-    <div class="smart-bundle-items">
-      
-      <!-- Main Product Item -->
-      {% if main_product %}
-        {% assign main_variant = main_product.selected_or_first_available_variant %}
-        <div class="smart-bundle-item" data-price="{{ main_variant.price }}" data-variant-id="{{ main_variant.id }}">
-          <label class="smart-bundle-checkbox-wrap">
-            <input type="checkbox" class="smart-bundle-checkbox" checked disabled data-item-type="main">
-            <span class="smart-bundle-custom-check checked disabled">?</span>
-          </label>
-          <div class="smart-bundle-thumb">
-            {% if main_product.featured_image %}
-              <img src="{{ main_product.featured_image | image_url: width: 140 }}" alt="{{ main_product.title }}" width="70" height="70" loading="lazy">
-            {% else %}
-              <div class="smart-bundle-thumb-placeholder">??</div>
-            {% endif %}
-          </div>
-          <div class="smart-bundle-details">
-            <div class="smart-bundle-step-tag">Step 1 � Current Product</div>
-            <a href="{{ main_product.url }}" class="smart-bundle-product-title">{{ main_product.title }}</a>
-            <div class="smart-bundle-price-tag">{{ main_variant.price | money }}</div>
-          </div>
-        </div>
-      {% endif %}
-
-      <!-- Plus separator -->
-      {% if comp_product_1 %}
-        <div class="smart-bundle-plus">+</div>
-
-        <!-- Complementary Product 1 -->
-        {% assign comp_variant_1 = comp_product_1.selected_or_first_available_variant %}
-        <div class="smart-bundle-item" data-price="{{ comp_variant_1.price }}" data-variant-id="{{ comp_variant_1.id }}">
-          <label class="smart-bundle-checkbox-wrap">
-            <input type="checkbox" class="smart-bundle-checkbox" checked data-item-type="addon">
-            <span class="smart-bundle-custom-check checked">?</span>
-          </label>
-          <div class="smart-bundle-thumb">
-            {% if comp_product_1.featured_image %}
-              <img src="{{ comp_product_1.featured_image | image_url: width: 140 }}" alt="{{ comp_product_1.title }}" width="70" height="70" loading="lazy">
-            {% else %}
-              <div class="smart-bundle-thumb-placeholder">??</div>
-            {% endif %}
-          </div>
-          <div class="smart-bundle-details">
-            <div class="smart-bundle-step-tag">Step 2 � Add-on Collection</div>
-            <a href="{{ comp_product_1.url }}" class="smart-bundle-product-title">{{ comp_product_1.title }}</a>
-            <div class="smart-bundle-price-tag">{{ comp_variant_1.price | money }}</div>
-          </div>
-        </div>
-      {% endif %}
-
-      <!-- Plus separator 2 -->
-      {% if comp_product_2 %}
-        <div class="smart-bundle-plus">+</div>
-
-        <!-- Complementary Product 2 -->
-        {% assign comp_variant_2 = comp_product_2.selected_or_first_available_variant %}
-        <div class="smart-bundle-item" data-price="{{ comp_variant_2.price }}" data-variant-id="{{ comp_variant_2.id }}">
-          <label class="smart-bundle-checkbox-wrap">
-            <input type="checkbox" class="smart-bundle-checkbox" checked data-item-type="addon">
-            <span class="smart-bundle-custom-check checked">?</span>
-          </label>
-          <div class="smart-bundle-thumb">
-            {% if comp_product_2.featured_image %}
-              <img src="{{ comp_product_2.featured_image | image_url: width: 140 }}" alt="{{ comp_product_2.title }}" width="70" height="70" loading="lazy">
-            {% else %}
-              <div class="smart-bundle-thumb-placeholder">??</div>
-            {% endif %}
-          </div>
-          <div class="smart-bundle-details">
-            <div class="smart-bundle-step-tag">Step 3 � Bonus Collection</div>
-            <a href="{{ comp_product_2.url }}" class="smart-bundle-product-title">{{ comp_product_2.title }}</a>
-            <div class="smart-bundle-price-tag">{{ comp_variant_2.price | money }}</div>
-          </div>
-        </div>
-      {% endif %}
-
+    <!-- Dynamic Collection Step Rows Container -->
+    <div class="smart-bundle-steps" id="sb-steps-{{ block.id }}">
+      <div class="sb-loading-placeholder" style="text-align: center; padding: 20px; color: #a1a1aa; font-size: 13px;">
+        Loading bundle collections...
+      </div>
     </div>
 
-    <!-- Summary & CTA Section -->
+    <!-- Summary & Pricing Section -->
     <div class="smart-bundle-footer">
       <div class="smart-bundle-pricing">
         <div class="smart-bundle-total-row">
@@ -154,10 +64,27 @@
       </div>
 
       <button type="button" class="smart-bundle-btn" id="sb-add-btn-{{ block.id }}">
-        <span class="smart-bundle-btn-text">{{ block.settings.cta_button_text }}</span>
-        <span class="smart-bundle-btn-icon">?</span>
+        <span class="smart-bundle-btn-text">Add Complete Bundle to Cart</span>
+        <span class="smart-bundle-btn-icon">⚡</span>
       </button>
       <div class="smart-bundle-feedback" id="sb-feedback-{{ block.id }}"></div>
+    </div>
+  </div>
+
+  <!-- Storefront Collection Product Picker Modal -->
+  <div class="sb-modal-overlay" id="sb-modal-{{ block.id }}" style="display: none;">
+    <div class="sb-modal-card">
+      <div class="sb-modal-header">
+        <div>
+          <div class="sb-modal-step-tag" id="sb-modal-step-tag-{{ block.id }}">Step Collection</div>
+          <h4 class="sb-modal-title" id="sb-modal-title-{{ block.id }}">Choose a Product</h4>
+        </div>
+        <button type="button" class="sb-modal-close" id="sb-modal-close-{{ block.id }}">✕</button>
+      </div>
+      
+      <div class="sb-modal-body" id="sb-modal-body-{{ block.id }}">
+        <div style="text-align: center; padding: 30px; color: #71717a;">Loading products from collection...</div>
+      </div>
     </div>
   </div>
 </div>
@@ -166,6 +93,7 @@
   .smart-bundle-container {
     margin: 24px 0;
     font-family: inherit;
+    position: relative;
   }
   .smart-bundle-card {
     background-color: var(--sb-bg, #18181b);
@@ -211,60 +139,35 @@
     color: #a1a1aa;
     margin: 0 0 16px 0;
   }
-  .smart-bundle-items {
+  .smart-bundle-steps {
     display: flex;
     flex-direction: column;
     gap: 12px;
     margin-bottom: 18px;
   }
-  .smart-bundle-item {
-    display: flex;
-    align-items: center;
-    gap: 14px;
+  .sb-step-card {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
-    padding: 10px 14px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     transition: all 0.2s ease;
   }
-  .smart-bundle-item:hover {
+  .sb-step-card:hover {
     background: rgba(255, 255, 255, 0.07);
-    border-color: rgba(245, 158, 11, 0.3);
+    border-color: rgba(245, 158, 11, 0.35);
   }
-  .smart-bundle-checkbox-wrap {
-    cursor: pointer;
-    position: relative;
+  .sb-step-left {
     display: flex;
     align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
   }
-  .smart-bundle-checkbox {
-    position: absolute;
-    opacity: 0;
-    cursor: pointer;
-  }
-  .smart-bundle-custom-check {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    border: 2px solid #52525b;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    font-weight: bold;
-    color: transparent;
-    transition: all 0.15s ease;
-  }
-  .smart-bundle-custom-check.checked {
-    background: var(--sb-accent, #f59e0b);
-    border-color: var(--sb-accent, #f59e0b);
-    color: #111;
-  }
-  .smart-bundle-custom-check.disabled {
-    opacity: 0.8;
-    cursor: not-allowed;
-  }
-  .smart-bundle-thumb {
+  .sb-step-thumb {
     width: 52px;
     height: 52px;
     border-radius: 6px;
@@ -276,45 +179,54 @@
     flex-shrink: 0;
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
-  .smart-bundle-thumb img {
+  .sb-step-thumb img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  .smart-bundle-thumb-placeholder {
-    font-size: 24px;
-  }
-  .smart-bundle-details {
+  .sb-step-info {
     flex: 1;
     min-width: 0;
   }
-  .smart-bundle-step-tag {
+  .sb-step-badge {
     font-size: 0.7rem;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--sb-accent, #f59e0b);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
-  .smart-bundle-product-title {
+  .sb-step-product-name {
     font-size: 0.92rem;
     font-weight: 600;
     color: #f4f4f5;
-    text-decoration: none;
-    display: block;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    margin: 2px 0;
   }
-  .smart-bundle-product-title:hover {
-    color: var(--sb-accent, #f59e0b);
-  }
-  .smart-bundle-price-tag {
+  .sb-step-price {
     font-size: 0.85rem;
     color: #d4d4d8;
     font-weight: 500;
-    margin-top: 2px;
   }
-  .smart-bundle-plus {
+  .sb-change-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+  .sb-change-btn:hover {
+    background: var(--sb-accent, #f59e0b);
+    border-color: var(--sb-accent, #f59e0b);
+    color: #000;
+  }
+  .sb-step-separator {
     text-align: center;
     color: #71717a;
     font-size: 16px;
@@ -385,9 +297,6 @@
     filter: brightness(1.08);
     transform: translateY(-1px);
   }
-  .smart-bundle-btn:active {
-    transform: translateY(0);
-  }
   .smart-bundle-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -398,11 +307,123 @@
     text-align: center;
     min-height: 18px;
   }
-  .smart-bundle-feedback.success {
-    color: #4ade80;
+  .smart-bundle-feedback.success { color: #4ade80; }
+  .smart-bundle-feedback.error { color: #f87171; }
+
+  /* Modal Styling */
+  .sb-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
   }
-  .smart-bundle-feedback.error {
-    color: #f87171;
+  .sb-modal-card {
+    background: #18181b;
+    color: #ffffff;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  }
+  .sb-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .sb-modal-step-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--sb-accent, #f59e0b);
+    text-transform: uppercase;
+  }
+  .sb-modal-title {
+    margin: 2px 0 0 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+  .sb-modal-close {
+    background: none;
+    border: none;
+    color: #a1a1aa;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
+  .sb-modal-close:hover { color: #ffffff; }
+  .sb-modal-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .sb-modal-product-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    gap: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .sb-modal-product-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+  .sb-modal-product-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+  .sb-modal-product-img {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #27272a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .sb-modal-product-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sb-modal-product-price {
+    font-size: 0.85rem;
+    color: #a1a1aa;
+    margin-top: 2px;
+  }
+  .sb-modal-select-btn {
+    background: linear-gradient(135deg, var(--sb-accent, #f59e0b), #d97706);
+    color: #000;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
   }
 </style>
 
@@ -411,33 +432,24 @@
     const container = document.getElementById('smart-bundle-{{ block.id }}');
     if (!container) return;
 
-    let discountPercent = parseFloat(container.dataset.discount || 15);
-
-    // Dynamic Live Sync from App Database
-    fetch('/api/bundles')
-      .then(r => r.json())
-      .then(data => {
-        if (data.bundles && data.bundles.length > 0) {
-          const active = data.bundles[0];
-          if (active.discountPercent) {
-            discountPercent = parseFloat(active.discountPercent);
-            container.dataset.discount = discountPercent;
-            const tEl = container.querySelector('.smart-bundle-title');
-            const bEl = container.querySelector('.smart-bundle-badge');
-            const sEl = container.querySelector('.smart-bundle-subtitle strong');
-            if (tEl && active.title) tEl.textContent = active.title;
-            if (bEl) bEl.textContent = 'Bundle & Save ' + discountPercent + '%';
-            if (sEl) sEl.textContent = discountPercent + '% OFF';
-            calculateTotal();
-          }
-        }
-      })
-      .catch(() => {});
+    const stepsContainer = document.getElementById('sb-steps-{{ block.id }}');
     const origPriceEl = document.getElementById('sb-orig-price-{{ block.id }}');
     const finalPriceEl = document.getElementById('sb-final-price-{{ block.id }}');
     const savingsEl = document.getElementById('sb-savings-{{ block.id }}');
     const addBtn = document.getElementById('sb-add-btn-{{ block.id }}');
     const feedbackEl = document.getElementById('sb-feedback-{{ block.id }}');
+
+    // Modal elements
+    const modalEl = document.getElementById('sb-modal-{{ block.id }}');
+    const modalCloseBtn = document.getElementById('sb-modal-close-{{ block.id }}');
+    const modalTitleEl = document.getElementById('sb-modal-title-{{ block.id }}');
+    const modalStepTagEl = document.getElementById('sb-modal-step-tag-{{ block.id }}');
+    const modalBodyEl = document.getElementById('sb-modal-body-{{ block.id }}');
+
+    let discountPercent = parseFloat(container.dataset.discount || 15);
+    let bundleSteps = [];
+    let activeStepIndex = null;
+    let collectionProductsCache = {};
 
     function formatMoney(cents) {
       return (cents / 100).toLocaleString(undefined, {
@@ -446,72 +458,240 @@
       });
     }
 
-    function calculateTotal() {
-      let rawTotal = 0;
-      let selectedCount = 0;
+    // Modal Controls
+    if (modalCloseBtn) {
+      modalCloseBtn.addEventListener('click', () => { modalEl.style.display = 'none'; });
+    }
+    if (modalEl) {
+      modalEl.addEventListener('click', (e) => {
+        if (e.target === modalEl) modalEl.style.display = 'none';
+      });
+    }
 
-      const items = container.querySelectorAll('.smart-bundle-item');
-      items.forEach(item => {
-        const checkbox = item.querySelector('.smart-bundle-checkbox');
-        const price = parseInt(item.dataset.price || 0, 10);
-        if (checkbox && checkbox.checked) {
-          rawTotal += price;
-          selectedCount++;
+    async function openModalForStep(stepIndex) {
+      activeStepIndex = stepIndex;
+      const step = bundleSteps[stepIndex];
+      if (!step) return;
+
+      modalStepTagEl.textContent = `Step ${stepIndex + 1} Collection`;
+      modalTitleEl.textContent = step.collectionTitle || 'Select Product';
+      modalBodyEl.innerHTML = '<div style="text-align:center; padding: 30px; color: #a1a1aa;">Loading products...</div>';
+      modalEl.style.display = 'flex';
+
+      const handle = step.collectionHandle || (step.collectionTitle ? step.collectionTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-') : '');
+      let productsList = collectionProductsCache[handle];
+
+      if (!productsList) {
+        try {
+          const fetchUrl = handle ? `/collections/${handle}/products.json` : '/products.json';
+          const res = await fetch(fetchUrl);
+          if (res.ok) {
+            const data = await res.json();
+            productsList = data.products || [];
+            collectionProductsCache[handle] = productsList;
+          }
+        } catch (e) {
+          console.error('Error fetching collection products:', e);
+        }
+      }
+
+      if (!productsList || productsList.length === 0) {
+        modalBodyEl.innerHTML = '<div style="text-align:center; padding: 30px; color: #71717a;">No products found in this collection.</div>';
+        return;
+      }
+
+      modalBodyEl.innerHTML = '';
+      productsList.forEach(p => {
+        const variant = p.variants && p.variants[0];
+        const priceCents = variant ? Math.round(parseFloat(variant.price) * 100) : 0;
+        const imgUrl = (p.images && p.images[0] && p.images[0].src) || p.image?.src || 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png';
+
+        const itemEl = document.createElement('div');
+        itemEl.className = 'sb-modal-product-item';
+        itemEl.innerHTML = `
+          <div class="sb-modal-product-left">
+            <img src="${imgUrl}" alt="${p.title}" class="sb-modal-product-img" width="48" height="48">
+            <div style="flex:1; min-width:0;">
+              <div class="sb-modal-product-name">${p.title}</div>
+              <div class="sb-modal-product-price">${formatMoney(priceCents)}</div>
+            </div>
+          </div>
+          <button type="button" class="sb-modal-select-btn">Choose Item ✓</button>
+        `;
+
+        itemEl.addEventListener('click', () => {
+          selectProductForStep(stepIndex, {
+            id: p.id,
+            title: p.title,
+            variantId: variant ? variant.id : null,
+            price: priceCents,
+            imageUrl: imgUrl
+          });
+          modalEl.style.display = 'none';
+        });
+
+        modalBodyEl.appendChild(itemEl);
+      });
+    }
+
+    function selectProductForStep(stepIndex, product) {
+      if (!bundleSteps[stepIndex]) return;
+      bundleSteps[stepIndex].selectedProduct = product;
+      renderSteps();
+      recalculate();
+    }
+
+    function recalculate() {
+      let rawTotal = 0;
+      let allChosen = true;
+
+      bundleSteps.forEach(s => {
+        if (s.selectedProduct && s.selectedProduct.price) {
+          rawTotal += s.selectedProduct.price;
+        } else {
+          allChosen = false;
         }
       });
 
-      // Discount applies if multiple items are selected
-      const isEligible = selectedCount >= 2;
-      const discount = isEligible ? (rawTotal * (discountPercent / 100)) : 0;
+      const discount = rawTotal * (discountPercent / 100);
       const finalTotal = rawTotal - discount;
 
       if (origPriceEl) {
-        origPriceEl.textContent = isEligible ? formatMoney(rawTotal) : '';
-        origPriceEl.style.display = isEligible ? 'inline' : 'none';
+        origPriceEl.textContent = allChosen ? formatMoney(rawTotal) : '';
       }
       if (finalPriceEl) {
         finalPriceEl.textContent = formatMoney(finalTotal);
       }
       if (savingsEl) {
-        if (isEligible) {
-          savingsEl.textContent = `Save ${formatMoney(discount)} (${discountPercent}%)`;
-          savingsEl.style.display = 'inline-block';
-        } else {
-          savingsEl.textContent = `Add 1 more to save ${discountPercent}%`;
-          savingsEl.style.display = 'inline-block';
-        }
+        savingsEl.textContent = allChosen ? `Save ${formatMoney(discount)} (${discountPercent}%)` : `Select all ${bundleSteps.length} collections to save ${discountPercent}%`;
+      }
+      if (addBtn) {
+        addBtn.disabled = !allChosen;
       }
     }
 
-    // Bind checkboxes
-    container.querySelectorAll('.smart-bundle-checkbox').forEach(cb => {
-      cb.addEventListener('change', function() {
-        const checkSpan = this.parentElement.querySelector('.smart-bundle-custom-check');
-        if (checkSpan) {
-          if (this.checked) {
-            checkSpan.classList.add('checked');
-            checkSpan.textContent = '?';
-          } else {
-            checkSpan.classList.remove('checked');
-            checkSpan.textContent = '';
+    function renderSteps() {
+      if (!stepsContainer) return;
+      stepsContainer.innerHTML = '';
+
+      bundleSteps.forEach((step, idx) => {
+        if (idx > 0) {
+          const plus = document.createElement('div');
+          plus.className = 'sb-step-separator';
+          plus.textContent = '+';
+          stepsContainer.appendChild(plus);
+        }
+
+        const card = document.createElement('div');
+        card.className = 'sb-step-card';
+
+        const p = step.selectedProduct;
+        const imgUrl = p ? p.imageUrl : 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png';
+        const title = p ? p.title : `Click to select from ${step.collectionTitle || 'Collection'}`;
+        const price = p ? formatMoney(p.price) : 'Eligible for bundle';
+
+        card.innerHTML = `
+          <div class="sb-step-left">
+            <div class="sb-step-thumb">
+              <img src="${imgUrl}" alt="${title}" width="52" height="52">
+            </div>
+            <div class="sb-step-info">
+              <div class="sb-step-badge">Step ${idx + 1} • ${step.collectionTitle || 'Collection ' + (idx + 1)}</div>
+              <div class="sb-step-product-name">${title}</div>
+              <div class="sb-step-price">${price}</div>
+            </div>
+          </div>
+          <button type="button" class="sb-change-btn">
+            ${p ? '🔄 Change Item' : '➕ Select Item'}
+          </button>
+        `;
+
+        card.addEventListener('click', () => openModalForStep(idx));
+        stepsContainer.appendChild(card);
+      });
+    }
+
+    // Initialize bundle data from API or Metafield
+    async function initBundle() {
+      try {
+        const res = await fetch('/api/bundles');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.bundles && data.bundles.length > 0) {
+            const active = data.bundles[0];
+            discountPercent = parseFloat(active.discountPercent || 15);
+            container.dataset.discount = discountPercent;
+
+            const tEl = container.querySelector('.smart-bundle-title');
+            const bEl = container.querySelector('.smart-bundle-badge');
+            const sEl = container.querySelector('.smart-bundle-subtitle strong');
+            if (tEl && active.title) tEl.textContent = active.title;
+            if (bEl) bEl.textContent = `Bundle & Save ${discountPercent}%`;
+            if (sEl) sEl.textContent = `${discountPercent}% OFF`;
+
+            if (active.config && active.config.collectionRows && active.config.collectionRows.length > 0) {
+              bundleSteps = active.config.collectionRows.map((r, i) => ({
+                stepIndex: i,
+                collectionId: r.collectionId,
+                collectionTitle: r.collectionTitle || `Collection ${i + 1}`,
+                collectionHandle: r.collectionHandle || '',
+                selectedProduct: null
+              }));
+            }
           }
         }
-        calculateTotal();
-      });
-    });
+      } catch (err) {
+        console.error('Error fetching bundles:', err);
+      }
 
-    calculateTotal();
+      // Fallback steps if no collectionRows defined
+      if (bundleSteps.length === 0) {
+        bundleSteps = [
+          { stepIndex: 0, collectionTitle: 'Collection 1', collectionHandle: 'collection-1', selectedProduct: null },
+          { stepIndex: 1, collectionTitle: 'collection 2', collectionHandle: 'collection-2', selectedProduct: null }
+        ];
+      }
 
-    // AJAX Add to Cart
+      // Auto pre-select first product for each collection step
+      for (let i = 0; i < bundleSteps.length; i++) {
+        const handle = bundleSteps[i].collectionHandle || (bundleSteps[i].collectionTitle ? bundleSteps[i].collectionTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-') : '');
+        try {
+          const res = await fetch(handle ? `/collections/${handle}/products.json` : '/products.json');
+          if (res.ok) {
+            const data = await res.json();
+            const prods = data.products || [];
+            if (prods.length > 0) {
+              const p = prods[0];
+              const variant = p.variants && p.variants[0];
+              const priceCents = variant ? Math.round(parseFloat(variant.price) * 100) : 10000;
+              const imgUrl = (p.images && p.images[0] && p.images[0].src) || p.image?.src || 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png';
+
+              bundleSteps[i].selectedProduct = {
+                id: p.id,
+                title: p.title,
+                variantId: variant ? variant.id : null,
+                price: priceCents,
+                imageUrl: imgUrl
+              };
+            }
+          }
+        } catch (e) {}
+      }
+
+      renderSteps();
+      recalculate();
+    }
+
+    initBundle();
+
+    // Add to cart handler
     if (addBtn) {
       addBtn.addEventListener('click', async function() {
-        const selectedVariants = [];
-        container.querySelectorAll('.smart-bundle-item').forEach(item => {
-          const checkbox = item.querySelector('.smart-bundle-checkbox');
-          const variantId = item.dataset.variantId;
-          if (checkbox && checkbox.checked && variantId) {
-            selectedVariants.push({
-              id: parseInt(variantId, 10),
+        const items = [];
+        bundleSteps.forEach(s => {
+          if (s.selectedProduct && s.selectedProduct.variantId) {
+            items.push({
+              id: parseInt(s.selectedProduct.variantId, 10),
               quantity: 1,
               properties: {
                 '_bundle': 'Smart Multi-Collection Bundle',
@@ -521,49 +701,42 @@
           }
         });
 
-        if (selectedVariants.length === 0) {
+        if (items.length < bundleSteps.length) {
           if (feedbackEl) {
             feedbackEl.className = 'smart-bundle-feedback error';
-            feedbackEl.textContent = 'Please select at least 1 item.';
+            feedbackEl.textContent = `Please pick a product from each of the ${bundleSteps.length} collections.`;
           }
           return;
         }
 
         addBtn.disabled = true;
         const btnText = addBtn.querySelector('.smart-bundle-btn-text');
-        const origText = btnText ? btnText.textContent : 'Add Bundle to Cart';
         if (btnText) btnText.textContent = 'Adding to cart...';
-        if (feedbackEl) feedbackEl.textContent = '';
 
         try {
           const res = await fetch('/cart/add.js', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify({ items: selectedVariants })
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ items })
           });
 
           if (res.ok) {
             if (feedbackEl) {
               feedbackEl.className = 'smart-bundle-feedback success';
-              feedbackEl.textContent = '? Bundle added to cart! Redirecting...';
+              feedbackEl.textContent = '✓ All bundle products added to cart!';
             }
-            setTimeout(() => {
-              window.location.href = '/cart';
-            }, 600);
+            setTimeout(() => { window.location.href = '/cart'; }, 500);
           } else {
             const err = await res.json();
-            throw new Error(err.description || 'Could not add items to cart.');
+            throw new Error(err.description || 'Could not add bundle items to cart.');
           }
         } catch (e) {
+          addBtn.disabled = false;
+          if (btnText) btnText.textContent = 'Add Complete Bundle to Cart';
           if (feedbackEl) {
             feedbackEl.className = 'smart-bundle-feedback error';
-            feedbackEl.textContent = e.message || 'Something went wrong.';
+            feedbackEl.textContent = e.message || 'Error adding to cart.';
           }
-          addBtn.disabled = false;
-          if (btnText) btnText.textContent = origText;
         }
       });
     }
@@ -576,13 +749,10 @@
   "target": "section",
   "settings": [
     { "type": "text", "id": "heading", "label": "Heading", "default": "Frequently Bought Together" },
-    { "type": "text", "id": "badge_text", "label": "Badge Text", "default": "Bundle Save 15%" },
+    { "type": "range", "id": "discount_percent", "min": 5, "max": 50, "step": 5, "unit": "%", "label": "Bundle Discount", "default": 15 },
     { "type": "color", "id": "accent_color", "label": "Accent Color", "default": "#f59e0b" },
     { "type": "color", "id": "bg_color", "label": "Card Background", "default": "#18181b" },
-    { "type": "color", "id": "text_color", "label": "Text Color", "default": "#ffffff" },
-    { "type": "product", "id": "bundle_product_1", "label": "Complementary Product" },
-    { "type": "range", "id": "discount_percent", "min": 5, "max": 50, "step": 5, "unit": "%", "label": "Bundle Discount", "default": 15 },
-    { "type": "text", "id": "cta_button_text", "label": "Button Text", "default": "Add Bundle to Cart" }
+    { "type": "color", "id": "text_color", "label": "Text Color", "default": "#ffffff" }
   ]
 }
 {% endschema %}
