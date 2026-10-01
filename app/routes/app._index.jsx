@@ -1,4 +1,4 @@
-﻿import { useLoaderData, useFetcher, Link } from "react-router";
+import { useLoaderData, useFetcher, Link } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 
@@ -81,8 +81,8 @@ export default function Dashboard() {
     }
   };
 
-  const themeCustomizerUrl = dashboardData.shop 
-    ? `https://${dashboardData.shop}/admin/themes/current/editor?context=apps` 
+  const themeCustomizerUrl = dashboardData.shop
+    ? `https://${dashboardData.shop}/admin/themes/current/editor?context=apps`
     : "#";
 
   return (
@@ -202,7 +202,7 @@ export default function Dashboard() {
                   <th style={{ padding: "12px 14px" }}>Units Sold</th>
                   <th style={{ padding: "12px 14px" }}>Revenue</th>
                   <th style={{ padding: "12px 14px" }}>Status</th>
-                  <th style={{ padding: "12px 14px", textAlign: "center" }}>Actions (Publish)</th>
+                  <th style={{ padding: "12px 14px", textAlign: "center" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -234,7 +234,6 @@ export default function Dashboard() {
                         </span>
                       </td>
 
-                      {/* ২য় ছবির মতো টগল বাটন ও অ্যাকশন কন্ট্রোলস */}
                       <td style={{ padding: "14px", textAlign: "center" }}>
                         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "10px" }}>
 
@@ -275,6 +274,28 @@ export default function Dashboard() {
                               {isActive ? "ON" : "OFF"}
                             </span>
                           </button>
+
+                          {/* Edit Bundle Button */}
+                          <Link
+                            to={`/app/bundle-builder?id=${bundle.id}`}
+                            title="Edit bundle"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: "30px",
+                              height: "28px",
+                              borderRadius: "6px",
+                              backgroundColor: "#f3f4f6",
+                              color: "#374151",
+                              textDecoration: "none",
+                              fontSize: "14px",
+                              border: "1px solid #d1d5db",
+                              cursor: "pointer",
+                            }}
+                          >
+                            ??
+                          </Link>
 
                           {/* Delete Button */}
                           <button

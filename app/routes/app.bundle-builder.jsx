@@ -71,7 +71,7 @@ export const loader = async ({ request }) => {
             { id: "p3", title: "product 3", imageUrl: "", price: 100.0 },
         ];
 
-    return { collections, products };
+    return { collections, products, existingBundle };
 };
 
 // ২. ডাটাবেজে রিয়েল সেভ
@@ -203,11 +203,11 @@ export default function BundleBuilder() {
     );
 
     return (
-        <s-page heading="Multi-Collection Bundle Builder">
+        <s-page heading={existingBundle ? `Edit Bundle: ${existingBundle.title}` : "Multi-Collection Bundle Builder"}>
             {/* টপ অ্যাকশন বার */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                 <button
-                    onClick={() => navigate("/app/templates")}
+                    onClick={() => navigate(existingBundle ? "/app" : "/app/templates")}
                     style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontSize: "14px" }}
                 >
                     ← Back to Templates
@@ -221,7 +221,7 @@ export default function BundleBuilder() {
                         disabled={isPublishing}
                         style={{ padding: "8px 20px", borderRadius: "6px", border: "none", background: "#111827", color: "#fff", fontWeight: "bold", cursor: "pointer" }}
                     >
-                        {isPublishing ? "Publishing..." : "Publish Bundle"}
+                        {isPublishing ? "Saving..." : existingBundle ? "Update Bundle ??" : "Publish Bundle ??"}
                     </button>
                 </div>
             </div>

@@ -21,10 +21,23 @@
   {% endfor %}
 {% endif %}
 
+{% assign bundle_meta = app.metafields.smart_bundles.active_bundle.value %}
+{% assign display_heading = block.settings.heading %}
+{% assign display_discount = block.settings.discount_percent %}
+
+{% if bundle_meta %}
+  {% if bundle_meta.title != blank %}
+    {% assign display_heading = bundle_meta.title %}
+  {% endif %}
+  {% if bundle_meta.discountPercent != blank %}
+    {% assign display_discount = bundle_meta.discountPercent %}
+  {% endif %}
+{% endif %}
+
 <div 
   class="smart-bundle-container" 
   id="smart-bundle-{{ block.id }}"
-  data-discount="{{ block.settings.discount_percent }}"
+  data-discount="{{ display_discount }}"
   data-accent="{{ block.settings.accent_color }}"
   style="
     --sb-accent: {{ block.settings.accent_color }};
@@ -37,14 +50,14 @@
     <div class="smart-bundle-header">
       <div class="smart-bundle-title-wrap">
         <span class="smart-bundle-sparkle">?</span>
-        <h3 class="smart-bundle-title">{{ block.settings.heading }}</h3>
+        <h3 class="smart-bundle-title">{{ display_heading }}</h3>
       </div>
-      <span class="smart-bundle-badge">{{ block.settings.badge_text }}</span>
+      <span class="smart-bundle-badge">Bundle & Save {{ display_discount }}%</span>
     </div>
 
     <!-- Subtitle / Info -->
     <p class="smart-bundle-subtitle">
-      Buy together from complementary collections to unlock <strong>{{ block.settings.discount_percent }}% OFF</strong> instantly.
+      Buy together from complementary collections to unlock <strong>{{ display_discount }}% OFF</strong> instantly.
     </p>
 
     <!-- Product Rows -->
@@ -136,7 +149,7 @@
           <span class="smart-bundle-final-price" id="sb-final-price-{{ block.id }}"></span>
         </div>
         <div class="smart-bundle-savings-badge" id="sb-savings-{{ block.id }}">
-          Save {{ block.settings.discount_percent }}%
+          Save {{ display_discount }}%
         </div>
       </div>
 
@@ -398,7 +411,28 @@
     const container = document.getElementById('smart-bundle-{{ block.id }}');
     if (!container) return;
 
-    const discountPercent = parseFloat(container.dataset.discount || 15);
+    let discountPercent = parseFloat(container.dataset.discount || 15);
+
+    // Dynamic Live Sync from App Database
+    fetch('/api/bundles')
+      .then(r => r.json())
+      .then(data => {
+        if (data.bundles && data.bundles.length > 0) {
+          const active = data.bundles[0];
+          if (active.discountPercent) {
+            discountPercent = parseFloat(active.discountPercent);
+            container.dataset.discount = discountPercent;
+            const tEl = container.querySelector('.smart-bundle-title');
+            const bEl = container.querySelector('.smart-bundle-badge');
+            const sEl = container.querySelector('.smart-bundle-subtitle strong');
+            if (tEl && active.title) tEl.textContent = active.title;
+            if (bEl) bEl.textContent = 'Bundle & Save ' + discountPercent + '%';
+            if (sEl) sEl.textContent = discountPercent + '% OFF';
+            calculateTotal();
+          }
+        }
+      })
+      .catch(() => {});
     const origPriceEl = document.getElementById('sb-orig-price-{{ block.id }}');
     const finalPriceEl = document.getElementById('sb-final-price-{{ block.id }}');
     const savingsEl = document.getElementById('sb-savings-{{ block.id }}');
