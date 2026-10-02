@@ -878,6 +878,7 @@ export default function VolumeDiscountBuilder() {
                                                 placeholder="e.g. Most Popular"
                                                 style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
                                             />
+                                        </div>
                                     </div>
 
                                     {/* Action Buttons: Add Image & Add Gift (Image 1) */}
