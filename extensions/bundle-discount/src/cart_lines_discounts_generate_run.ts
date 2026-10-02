@@ -18,7 +18,7 @@ export function cartLinesDiscountsGenerateRun(
     return { operations: [] };
   }
 
-  // Group by bundle group ID so we only discount when there are at least 2 bundle items
+  // Group by bundle group ID
   const groups: { [key: string]: typeof bundleLines } = {};
   for (const line of bundleLines) {
     const gid = line.bundleGroup!.value!;
@@ -30,10 +30,12 @@ export function cartLinesDiscountsGenerateRun(
 
   for (const gid of Object.keys(groups)) {
     const lines = groups[gid];
-    // Only apply discount if the bundle contains 2 or more products
-    if (lines.length < 2) continue;
+    // Calculate total quantity in this bundle group (supports both multi-product bundles and volume discounts)
+    const totalQty = lines.reduce((sum, l) => sum + l.quantity, 0);
+    if (totalQty < 2) continue;
 
     const discountValue = parseFloat(lines[0].bundleDiscount?.value || '15');
+    if (discountValue <= 0) continue;
 
     for (const line of lines) {
       discountCandidates.push({

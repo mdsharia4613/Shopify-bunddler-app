@@ -1,11 +1,8 @@
 {% comment %}
   Volume Discounts App Block
-  Exact matching design:
-  - Radio selection with active accent ring
-  - Title with 'SAVE $XX' pill
-  - Subtitle (e.g. 'Standard price', 'You save 15%')
-  - Discounted price with strikethrough original price
-  - Floating 'Most Popular' badge with sparkles ✨
+  - Fully dynamic tiers loaded from App Metafield and synced with App API
+  - Synchronized with theme's default ADD TO CART button
+  - Renders exact modern styling with radio selection, save pills, corner badges, and gift ribbons
 {% endcomment %}
 
 {% if product %}
@@ -47,7 +44,7 @@
   {% assign current_variant = product.selected_or_first_available_variant %}
   {% assign base_price = current_variant.price %}
 
-  {% assign display_accent = block.settings.accent_color %}
+  {% assign display_accent = block.settings.accent_color | default: "#f59e0b" %}
   {% assign display_header_title = block.settings.header_title %}
 
   {% if vd_meta %}
@@ -165,7 +162,7 @@
                 </div>
               </div>
 
-              <!-- Bottom Attached Gift Ribbon (Images 3 & 4) -->
+              <!-- Bottom Attached Gift Ribbon -->
               {% if tier.gift != blank and tier.gift.enabled %}
                 <div 
                   class="vd-tier-gift-bar {% unless is_selected %}vd-gift-hidden{% endunless %}" 
@@ -189,70 +186,111 @@
           {% endfor %}
 
         {% else %}
-          {% comment %} Fallback: Pre-configured 3 Tiers (Single, Duo, Trio) matching the design {% endcomment %}
+          {% comment %} Fallback: Pre-configured 3 Tiers (Single, Duo, Trio) matching the exact design {% endcomment %}
           
           <!-- Tier 1: Single -->
-          <div 
-            class="vd-tier-row {% if block.settings.default_tier == '1' %}is-selected{% endif %}"
-            data-tier="1"
-            data-qty="{{ block.settings.tier_1_qty }}"
-            data-discount="{{ block.settings.tier_1_discount }}"
-            tabindex="0"
-            role="radio"
-            aria-checked="{% if block.settings.default_tier == '1' %}true{% else %}false{% endif %}"
-          >
-            <div class="vd-tier-left">
-              <span class="vd-radio-dot"></span>
-              <div class="vd-tier-info">
-                <div class="vd-title-row">
-                  <span class="vd-tier-title">{{ block.settings.tier_1_title }}</span>
+          <div class="vd-tier-card" data-tier-card="1">
+            <div 
+              class="vd-tier-row"
+              data-tier="1"
+              data-qty="1"
+              data-discount="0"
+              tabindex="0"
+              role="radio"
+              aria-checked="false"
+            >
+              <div class="vd-tier-left">
+                <span class="vd-radio-dot"></span>
+                <div class="vd-tier-info">
+                  <div class="vd-title-row">
+                    <span class="vd-tier-title">Single</span>
+                  </div>
+                  <div class="vd-tier-subtitle">Standard price</div>
                 </div>
-                <div class="vd-tier-subtitle">Standard price</div>
               </div>
-            </div>
-            <div class="vd-tier-right">
-              <div class="vd-final-price" data-final-price="1">
-                {{ base_price | times: block.settings.tier_1_qty | money }}
+              <div class="vd-tier-right">
+                <div class="vd-final-price" data-final-price="1">
+                  {{ base_price | times: 1 | money }}
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Tier 2: Duo (Popular) -->
-          {% assign t2_raw = base_price | times: block.settings.tier_2_qty %}
-          {% assign t2_disc = t2_raw | times: block.settings.tier_2_discount | divided_by: 100 %}
+          {% assign t2_raw = base_price | times: 2 %}
+          {% assign t2_disc = t2_raw | times: 15 | divided_by: 100 %}
           {% assign t2_final = t2_raw | minus: t2_disc %}
-          <div 
-            class="vd-tier-row {% if block.settings.default_tier == '2' %}is-selected{% endif %}"
-            data-tier="2"
-            data-qty="{{ block.settings.tier_2_qty }}"
-            data-discount="{{ block.settings.tier_2_discount }}"
-            tabindex="0"
-            role="radio"
-            aria-checked="{% if block.settings.default_tier == '2' %}true{% else %}false{% endif %}"
-          >
-            <div class="vd-popular-badge">
-              <span>✨</span>
-              <span>Most Popular</span>
-            </div>
+          <div class="vd-tier-card is-selected" data-tier-card="2">
+            <div 
+              class="vd-tier-row is-selected"
+              data-tier="2"
+              data-qty="2"
+              data-discount="15"
+              tabindex="0"
+              role="radio"
+              aria-checked="true"
+            >
+              <div class="vd-popular-badge">
+                <span>✨</span>
+                <span>Most Popular</span>
+              </div>
 
-            <div class="vd-tier-left">
-              <span class="vd-radio-dot"></span>
-              <div class="vd-tier-info">
-                <div class="vd-title-row">
-                  <span class="vd-tier-title">{{ block.settings.tier_2_title }}</span>
-                  <span class="vd-save-pill" data-save-pill="2">
-                    SAVE {{ t2_disc | money }}
-                  </span>
+              <div class="vd-tier-left">
+                <span class="vd-radio-dot"></span>
+                <div class="vd-tier-info">
+                  <div class="vd-title-row">
+                    <span class="vd-tier-title">Duo</span>
+                    <span class="vd-save-pill" data-save-pill="2">
+                      SAVE {{ t2_disc | money }}
+                    </span>
+                  </div>
+                  <div class="vd-tier-subtitle">You save 15%</div>
                 </div>
-                <div class="vd-tier-subtitle">You save {{ block.settings.tier_2_discount }}%</div>
+              </div>
+              <div class="vd-tier-right">
+                <div class="vd-final-price" data-final-price="2">
+                  {{ t2_final | money }}
+                </div>
+                <div class="vd-strikethrough-price" data-raw-price="2">
+                  {{ t2_raw | money }}
+                </div>
               </div>
             </div>
-            <div class="vd-tier-right">
-              <div class="vd-final-price" data-final-price="2">
-                {{ t2_final | money }}
+          </div>
+
+          <!-- Tier 3: Trio -->
+          {% assign t3_raw = base_price | times: 3 %}
+          {% assign t3_disc = t3_raw | times: 20 | divided_by: 100 %}
+          {% assign t3_final = t3_raw | minus: t3_disc %}
+          <div class="vd-tier-card" data-tier-card="3">
+            <div 
+              class="vd-tier-row"
+              data-tier="3"
+              data-qty="3"
+              data-discount="20"
+              tabindex="0"
+              role="radio"
+              aria-checked="false"
+            >
+              <div class="vd-tier-left">
+                <span class="vd-radio-dot"></span>
+                <div class="vd-tier-info">
+                  <div class="vd-title-row">
+                    <span class="vd-tier-title">Trio</span>
+                    <span class="vd-save-pill" data-save-pill="3">
+                      SAVE {{ t3_disc | money }}
+                    </span>
+                  </div>
+                  <div class="vd-tier-subtitle">You save 20%</div>
+                </div>
               </div>
-              <div class="vd-strikethrough-price" data-raw-price="2">
-                {{ t2_raw | money }}
+              <div class="vd-tier-right">
+                <div class="vd-final-price" data-final-price="3">
+                  {{ t3_final | money }}
+                </div>
+                <div class="vd-strikethrough-price" data-raw-price="3">
+                  {{ t3_raw | money }}
+                </div>
               </div>
             </div>
           </div>
@@ -261,7 +299,7 @@
 
       </div>
 
-      </div>
+    </div>
   </div>
 
   <style>
@@ -320,12 +358,12 @@
     }
 
     #vd-widget-{{ block.id }} .vd-tier-row.is-selected {
-      border: 2px solid var(--vd-accent, #f59e0b);
       background: #fffdf5;
-      box-shadow: 0 4px 12px -2px rgba(245, 158, 11, 0.15);
+      border: 2px solid var(--vd-accent, #f59e0b);
+      box-shadow: 0 0 0 1px var(--vd-accent, #f59e0b);
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-card:has(.vd-tier-gift-bar:not(.vd-gift-hidden)) .vd-tier-row {
+    #vd-widget-{{ block.id }} .vd-tier-card.is-selected .vd-tier-row {
       border-bottom-left-radius: 0;
       border-bottom-right-radius: 0;
       border-bottom: none;
@@ -431,72 +469,85 @@
     }
 
     #vd-widget-{{ block.id }} .vd-tier-subtitle {
-      font-size: 13px;
+      font-size: 13.5px;
       color: #6b7280;
       margin-top: 3px;
     }
 
     /* Right Side: Price */
     #vd-widget-{{ block.id }} .vd-tier-right {
-      text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
     }
 
     #vd-widget-{{ block.id }} .vd-final-price {
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 800;
       color: #111827;
-      line-height: 1.2;
     }
 
     #vd-widget-{{ block.id }} .vd-strikethrough-price {
       font-size: 13px;
       color: #9ca3af;
       text-decoration: line-through;
-      margin-top: 2px;
     }
-
-    
   </style>
 
-      <script>
+  <script>
     (function() {
       const container = document.getElementById('vd-widget-{{ block.id }}');
       if (!container) return;
 
-      const tiers = container.querySelectorAll('.vd-tier-row');
-      let currentVariantId = "{{ current_variant.id }}";
-      let currentProductTitle = {{ product.title | json }};
-      let currentProductImage = {{ product.featured_image | image_url: width: 400 | json }};
-      let basePrice = {{ base_price }};
+      const blockId = container.getAttribute('data-block-id');
+      const productId = container.getAttribute('data-product-id');
+      let currentVariantId = container.getAttribute('data-variant-id');
+      let basePrice = parseInt(container.getAttribute('data-base-price'), 10);
+      const currency = container.getAttribute('data-currency') || '$';
+
+      const currentProductTitle = {{ product.title | json }};
+      let currentProductImage = {{ product.featured_image | image_url: width: 300 | json }};
 
       function formatMoney(cents) {
-        return (cents / 100).toLocaleString(undefined, {
-          style: 'currency',
-          currency: '{{ cart.currency.iso_code }}'
-        });
+        return currency + (cents / 100).toFixed(2);
       }
 
       function syncThemeQuantity(qty) {
-        const productForms = document.querySelectorAll('form[action*="/cart/add"]');
-        productForms.forEach(productForm => {
-          const qtyInputs = productForm.querySelectorAll('input[name="quantity"], input.quantity__input, [data-quantity-input]');
-          qtyInputs.forEach(qtyInput => {
-            if (parseInt(qtyInput.value, 10) !== qty) {
-              qtyInput.value = qty;
-              qtyInput.dispatchEvent(new Event('change', { bubbles: true }));
-              qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+        const qtyInputs = document.querySelectorAll('input[name="quantity"], input.quantity__input, [data-quantity-input]');
+        qtyInputs.forEach(qtyInput => {
+          if (qtyInput) {
+            qtyInput.value = qty;
+            qtyInput.dispatchEvent(new Event('change', { bubbles: true }));
+            qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        });
+      }
+
+      function bindTierEvents() {
+        const tiers = container.querySelectorAll('.vd-tier-row');
+        tiers.forEach(item => {
+          item.onclick = function() {
+            selectTier(this);
+          };
+          item.onkeydown = function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              selectTier(this);
             }
-          });
+          };
         });
       }
 
       function selectTier(item, skipQtySync) {
+        const tiers = container.querySelectorAll('.vd-tier-row');
         tiers.forEach(t => {
           t.classList.remove('is-selected');
           t.setAttribute('aria-checked', 'false');
           const card = t.closest('.vd-tier-card');
           if (card) card.classList.remove('is-selected');
         });
+
         item.classList.add('is-selected');
         item.setAttribute('aria-checked', 'true');
         const activeCard = item.closest('.vd-tier-card');
@@ -517,21 +568,10 @@
         }
       }
 
-      tiers.forEach(item => {
-        item.addEventListener('click', function() {
-          selectTier(this);
-        });
-
-        item.addEventListener('keydown', function(e) {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            selectTier(this);
-          }
-        });
-      });
+      bindTierEvents();
 
       // Initial sync with default selected tier
-      const initiallySelected = container.querySelector('.vd-tier-row.is-selected') || tiers[0];
+      const initiallySelected = container.querySelector('.vd-tier-row.is-selected') || container.querySelector('.vd-tier-row');
       if (initiallySelected) {
         selectTier(initiallySelected);
       }
@@ -542,6 +582,7 @@
           if (e.target.matches('input[name="quantity"], input.quantity__input, [data-quantity-input]')) {
             const inputVal = parseInt(e.target.value, 10);
             let matchedTier = null;
+            const tiers = container.querySelectorAll('.vd-tier-row');
             tiers.forEach(t => {
               const tierQty = parseInt(t.getAttribute('data-qty') || '1', 10);
               if (tierQty === inputVal) matchedTier = t;
@@ -576,6 +617,7 @@
       }
 
       function updateTierPrices() {
+        const tiers = container.querySelectorAll('.vd-tier-row');
         tiers.forEach(item => {
           const tierNum = item.getAttribute('data-tier');
           const qty = parseInt(item.getAttribute('data-qty') || '1', 10);
@@ -601,6 +643,143 @@
           }
         });
       }
+
+      // Client-side dynamic tier sync from App API
+      async function syncTiersFromApi() {
+        try {
+          const res = await fetch('/api/bundles');
+          if (!res.ok) return;
+          const data = await res.json();
+          if (!data || !data.bundles) return;
+
+          const vdBundles = data.bundles.filter(b => b.strategy === 'Volume Discounts' && b.status === 'Active');
+          if (vdBundles.length === 0) return;
+          const activeConfig = vdBundles[0].config;
+          if (!activeConfig || !activeConfig.tiers || activeConfig.tiers.length === 0) return;
+
+          // Check eligibility
+          const currentPid = '{{ product.id }}';
+          if (activeConfig.appliesTo === 'products' && activeConfig.selectedProducts && activeConfig.selectedProducts.length > 0) {
+            const matchesProduct = activeConfig.selectedProducts.some(p => {
+              const cleanId = String(p.id).split('/').pop();
+              return cleanId === currentPid;
+            });
+            if (!matchesProduct) return;
+          }
+
+          renderDynamicTiers(activeConfig);
+        } catch(e) {
+          console.warn('Volume discount dynamic sync info:', e);
+        }
+      }
+
+      function renderDynamicTiers(config) {
+        const tiersList = container.querySelector('.vd-tiers-list');
+        if (!tiersList) return;
+
+        const defaultTierIndex = config.defaultTier || 2;
+        let html = '';
+
+        config.tiers.forEach((tier, idx) => {
+          const tierNum = idx + 1;
+          const isSelected = tierNum === defaultTierIndex;
+          const qty = parseInt(tier.qty || '1', 10);
+          const discount = parseFloat(tier.discount || '0');
+          const rawCents = basePrice * qty;
+          const savedCents = Math.round(rawCents * (discount / 100));
+          const finalCents = rawCents - savedCents;
+
+          let giftAttr = '';
+          if (tier.gift && tier.gift.enabled) {
+            giftAttr = `data-gift-type="${tier.gift.type || 'gift'}" data-gift-variant-id="${tier.gift.variantId || ''}"`;
+          }
+
+          let popBadgeHtml = '';
+          if (tier.popularBadge) {
+            popBadgeHtml = `
+              <div class="vd-popular-badge">
+                <span>✨</span>
+                <span>${tier.popularBadge}</span>
+              </div>
+            `;
+          }
+
+          let leftThumbHtml = '<span class="vd-radio-dot"></span>';
+          if (tier.image && tier.image.url) {
+            const imgSize = tier.image.size || 48;
+            const imgRadius = tier.image.radius || 6;
+            leftThumbHtml = `<img src="${tier.image.url}" alt="${tier.title}" class="vd-tier-thumb" style="width:${imgSize}px; height:${imgSize}px; border-radius:${imgRadius}px; object-fit:cover; flex-shrink:0;" />`;
+          }
+
+          let savePillHtml = '';
+          if (tier.saveTag) {
+            savePillHtml = `<span class="vd-save-pill">${tier.saveTag}</span>`;
+          } else if (discount > 0) {
+            savePillHtml = `<span class="vd-save-pill" data-save-pill="${tierNum}">SAVE ${formatMoney(savedCents)}</span>`;
+          }
+
+          let subtitleHtml = tier.subtitle || (discount > 0 ? `You save ${discount}%` : 'Standard price');
+
+          let strikethroughHtml = '';
+          if (discount > 0) {
+            strikethroughHtml = `<div class="vd-strikethrough-price" data-raw-price="${tierNum}">${formatMoney(rawCents)}</div>`;
+          }
+
+          let giftBarHtml = '';
+          if (tier.gift && tier.gift.enabled) {
+            const icon = tier.gift.type === 'shipping' ? '🚚' : (tier.gift.imageUrl ? `<img src="${tier.gift.imageUrl}" style="width:24px; height:24px; border-radius:4px; object-fit:cover;" />` : '🎁');
+            const giftText = tier.gift.text || '+ FREE Gift';
+            giftBarHtml = `
+              <div class="vd-tier-gift-bar ${isSelected ? '' : 'vd-gift-hidden'}" data-gift-bar="${tierNum}">
+                <span>${icon}</span>
+                <span>${giftText}</span>
+              </div>
+            `;
+          }
+
+          html += `
+            <div class="vd-tier-card ${isSelected ? 'is-selected' : ''}" data-tier-card="${tierNum}">
+              <div 
+                class="vd-tier-row ${isSelected ? 'is-selected' : ''}"
+                data-tier="${tierNum}"
+                data-qty="${qty}"
+                data-discount="${discount}"
+                ${giftAttr}
+                tabindex="0"
+                role="radio"
+                aria-checked="${isSelected ? 'true' : 'false'}"
+              >
+                ${popBadgeHtml}
+                <div class="vd-tier-left">
+                  ${leftThumbHtml}
+                  <div class="vd-tier-info">
+                    <div class="vd-title-row">
+                      <span class="vd-tier-title">${tier.title}</span>
+                      ${savePillHtml}
+                    </div>
+                    <div class="vd-tier-subtitle">${subtitleHtml}</div>
+                  </div>
+                </div>
+                <div class="vd-tier-right">
+                  <div class="vd-final-price" data-final-price="${tierNum}">${formatMoney(finalCents)}</div>
+                  ${strikethroughHtml}
+                </div>
+              </div>
+              ${giftBarHtml}
+            </div>
+          `;
+        });
+
+        tiersList.innerHTML = html;
+        bindTierEvents();
+
+        const activeTier = container.querySelector('.vd-tier-row.is-selected') || container.querySelector('.vd-tier-row');
+        if (activeTier) {
+          selectTier(activeTier);
+        }
+      }
+
+      syncTiersFromApi();
 
       // Add to cart execution synced with Shopify's default Add to Cart button
       let isSubmitting = false;
@@ -641,31 +820,28 @@
           let items = [];
 
           if (qty >= 2 && discount > 0) {
-            // Cart Transform linesMerge bundle group matching multi_collection_bundle system
+            // Cart lines discount bundle group - ONE single line item with quantity: qty
             const bundleGroupId = 'vd_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
-            for (let i = 0; i < qty; i++) {
-              items.push({
-                id: parseInt(currentVariantId, 10),
-                quantity: 1,
-                properties: {
-                  '_bundle': 'Volume Discount',
-                  '_bundle_type': 'volume_discount',
-                  '_bundle_group': bundleGroupId,
-                  '_bundle_title': currentProductTitle + ' (' + tierTitle + ')',
-                  '_bundle_components': currentProductTitle + ' x ' + qty,
-                  '_bundle_discount': discount + '%',
-                  '_bundle_discount_num': discount.toString(),
-                  '_bundle_original_cents': rawCents.toString(),
-                  '_bundle_discounted_cents': finalCents.toString(),
-                  '_bundle_image': currentProductImage || '',
-                  '_bundle_parent_variant_id': 'gid://shopify/ProductVariant/' + currentVariantId,
-                  '_volume_tier': tierTitle,
-                  '_bundle_item': (i + 1).toString()
-                }
-              });
-            }
+            items.push({
+              id: parseInt(currentVariantId, 10),
+              quantity: qty,
+              properties: {
+                '_bundle': 'Volume Discount',
+                '_bundle_type': 'volume_discount',
+                '_bundle_group': bundleGroupId,
+                '_bundle_title': currentProductTitle + ' (' + tierTitle + ')',
+                '_bundle_components': currentProductTitle + ' x ' + qty,
+                '_bundle_discount': discount + '%',
+                '_bundle_discount_num': discount.toString(),
+                '_bundle_original_cents': rawCents.toString(),
+                '_bundle_discounted_cents': finalCents.toString(),
+                '_bundle_image': currentProductImage || '',
+                '_bundle_parent_variant_id': 'gid://shopify/ProductVariant/' + currentVariantId,
+                '_volume_tier': tierTitle
+              }
+            });
           } else {
-            // Standard single item (e.g. Single tier with 0% discount)
+            // Standard single item
             items.push({
               id: parseInt(currentVariantId, 10),
               quantity: qty
@@ -783,60 +959,6 @@
       "type": "text",
       "id": "header_title",
       "label": "Heading"
-    },
-    {
-      "type": "number",
-      "id": "tier_1_qty",
-      "label": "Tier 1: Quantity",
-      "default": 1
-    },
-    {
-      "type": "text",
-      "id": "tier_1_title",
-      "label": "Tier 1: Title",
-      "default": "Single"
-    },
-    {
-      "type": "range",
-      "id": "tier_1_discount",
-      "min": 0,
-      "max": 50,
-      "step": 1,
-      "unit": "%",
-      "label": "Tier 1: Discount",
-      "default": 0
-    },
-    {
-      "type": "number",
-      "id": "tier_2_qty",
-      "label": "Tier 2: Quantity",
-      "default": 2
-    },
-    {
-      "type": "text",
-      "id": "tier_2_title",
-      "label": "Tier 2: Title",
-      "default": "Duo"
-    },
-    {
-      "type": "range",
-      "id": "tier_2_discount",
-      "min": 0,
-      "max": 70,
-      "step": 1,
-      "unit": "%",
-      "label": "Tier 2: Discount",
-      "default": 15
-    },
-    {
-      "type": "select",
-      "id": "default_tier",
-      "label": "Default Selected Tier",
-      "options": [
-        { "value": "1", "label": "Tier 1" },
-        { "value": "2", "label": "Tier 2" }
-      ],
-      "default": "2"
     },
     {
       "type": "color",

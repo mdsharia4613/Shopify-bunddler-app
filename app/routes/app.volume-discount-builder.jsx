@@ -73,11 +73,50 @@ export const action = async ({ request }) => {
 
     // Shopify App Metafield-এ সেভ করা যাতে স্টোরফ্রন্ট উইজেট লাইভ দেখতে পায়
     try {
-        const shopRes = await admin.graphql(`query { shop { id } }`);
-        const shopJson = await shopRes.json();
-        const shopId = shopJson.data?.shop?.id;
+        const infoRes = await admin.graphql(`query { currentAppInstallation { id } shop { id } }`);
+        const infoJson = await infoRes.json();
+        const appInstallId = infoJson.data?.currentAppInstallation?.id;
+        const shopId = infoJson.data?.shop?.id;
 
+        const metafieldVal = JSON.stringify({
+            id: savedBundle.id,
+            title: savedBundle.title,
+            headerTitle: parsedConfig.headerTitle || "",
+            headerSubtitle: parsedConfig.headerSubtitle || "",
+            buttonText: parsedConfig.buttonText || "Choose",
+            accentColor: parsedConfig.accentColor || "#f59e0b",
+            defaultTier: parsedConfig.defaultTier || 2,
+            tiers: parsedConfig.tiers || [],
+            appliesTo: parsedConfig.appliesTo || "all",
+            selectedProductIds: cleanProductIds,
+            selectedCollectionIds: cleanCollectionIds,
+            selectedProductsInfo: parsedConfig.selectedProducts || [],
+            selectedCollectionsInfo: parsedConfig.selectedCollections || [],
+            active: true,
+            updatedAt: new Date().toISOString(),
+        });
+
+        const metafields = [];
+        if (appInstallId) {
+            metafields.push({
+                ownerId: appInstallId,
+                namespace: "$app:smart_bundles",
+                key: "active_volume_discount",
+                type: "json",
+                value: metafieldVal,
+            });
+        }
         if (shopId) {
+            metafields.push({
+                ownerId: shopId,
+                namespace: "$app:smart_bundles",
+                key: "active_volume_discount",
+                type: "json",
+                value: metafieldVal,
+            });
+        }
+
+        if (metafields.length > 0) {
             await admin.graphql(
                 `#graphql
                 mutation setVolumeDiscountMetafield($metafields: [MetafieldsSetInput!]!) {
@@ -90,31 +129,7 @@ export const action = async ({ request }) => {
                 }`,
                 {
                     variables: {
-                        metafields: [
-                            {
-                                ownerId: shopId,
-                                namespace: "$app:smart_bundles",
-                                key: "active_volume_discount",
-                                type: "json",
-                                value: JSON.stringify({
-                                    id: savedBundle.id,
-                                    title: savedBundle.title,
-                                    headerTitle: parsedConfig.headerTitle || "",
-                                    headerSubtitle: parsedConfig.headerSubtitle || "",
-                                    buttonText: parsedConfig.buttonText || "Choose",
-                                    accentColor: parsedConfig.accentColor || "#f59e0b",
-                                    defaultTier: parsedConfig.defaultTier || 2,
-                                    tiers: parsedConfig.tiers || [],
-                                    appliesTo: parsedConfig.appliesTo || "all",
-                                    selectedProductIds: cleanProductIds,
-                                    selectedCollectionIds: cleanCollectionIds,
-                                    selectedProductsInfo: parsedConfig.selectedProducts || [],
-                                    selectedCollectionsInfo: parsedConfig.selectedCollections || [],
-                                    active: true,
-                                    updatedAt: new Date().toISOString(),
-                                }),
-                            },
-                        ],
+                        metafields,
                     },
                 }
             );

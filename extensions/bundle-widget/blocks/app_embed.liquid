@@ -1,32 +1,35 @@
 {% comment %}
-  Smart Bundles Core App Embed
-  Option A: Clean Consolidated Bundle Card in Cart (Native Cart Transform)
+  Smart Bundles Cart Option A Layout Embed Block
+  - Perfectly matches Option A Cart Design
+  - Supports both Multi-Collection Bundles and Volume Discounts
+  - Lock quantity, chips for components, crossed-out original price, savings tag
 {% endcomment %}
 
 <style>
-  /* Option A: Consolidated Bundle Card Styles */
+  /* Option A Card Container Styles */
   .sb-cart-bundle-container {
-    width: 100% !important;
     display: flex !important;
     align-items: flex-start !important;
     gap: 16px !important;
-    padding: 16px !important;
+    padding: 12px 14px !important;
     background: #ffffff !important;
     border: 1px solid #e2e8f0 !important;
     border-radius: 12px !important;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    max-width: 480px !important;
+    width: 100% !important;
     box-sizing: border-box !important;
     margin: 4px 0 !important;
     font-family: inherit !important;
   }
   .sb-cart-img-wrap {
+    width: 64px !important;
+    height: 64px !important;
     flex-shrink: 0 !important;
-    width: 76px !important;
-    height: 76px !important;
     border-radius: 8px !important;
     overflow: hidden !important;
     background: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
+    border: 1px solid #f1f5f9 !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -38,32 +41,33 @@
   }
   .sb-cart-content {
     flex: 1 !important;
-    min-width: 0 !important;
     display: flex !important;
     flex-direction: column !important;
     gap: 6px !important;
+    min-width: 0 !important;
   }
   .sb-cart-header {
     display: flex !important;
     align-items: center !important;
-    gap: 10px !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
     flex-wrap: wrap !important;
   }
   .sb-cart-title {
+    font-size: 14px !important;
     font-weight: 700 !important;
-    font-size: 15px !important;
     color: #0f172a !important;
-    line-height: 1.3 !important;
     margin: 0 !important;
+    line-height: 1.3 !important;
   }
   .sb-cart-badge {
     display: inline-flex !important;
     align-items: center !important;
     gap: 4px !important;
-    padding: 3px 8px !important;
     background: #ecfdf5 !important;
     color: #059669 !important;
     border: 1px solid #a7f3d0 !important;
+    padding: 2px 8px !important;
     border-radius: 9999px !important;
     font-size: 11px !important;
     font-weight: 700 !important;
@@ -97,26 +101,24 @@
     font-weight: 500 !important;
     color: #334155 !important;
     background: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
     padding: 3px 8px !important;
     border-radius: 6px !important;
+    border: 1px solid #e2e8f0 !important;
   }
   .sb-cart-remove-btn {
     align-self: flex-start !important;
-    font-size: 12px !important;
-    color: #ef4444 !important;
-    text-decoration: underline !important;
-    cursor: pointer !important;
     background: none !important;
     border: none !important;
     padding: 0 !important;
-    font-family: inherit !important;
-    margin-top: 6px !important;
-    font-weight: 500 !important;
-    transition: color 0.15s ease !important;
+    margin-top: 4px !important;
+    color: #ef4444 !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    text-decoration: underline !important;
   }
   .sb-cart-remove-btn:hover {
-    color: #b91c1c !important;
+    color: #dc2626 !important;
   }
   .sb-cart-qty-pill {
     display: inline-block !important;
@@ -211,7 +213,7 @@
         const discountNum = parseFloat(props['_bundle_discount_num'] || '15');
         const bundleTitle = props['_bundle_title'] || ('Bundle: ' + (props['_bundle_components'] || props['Includes'] || item.product_title));
         const bundleImage = props['_bundle_image'] || item.image || 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png';
-        const badgeLabel = isVolume ? (discountNum + '% OFF DISCOUNT') : (discountNum + '% OFF BUNDLE');
+        const badgeLabel = discountNum + '% OFF BUNDLE';
         const componentsLabel = isVolume ? 'Included in this tier:' : 'Included in this bundle:';
         const removeLabel = isVolume ? 'Remove' : 'Remove Complete Bundle';
         const qtyLabel = isVolume ? (props['_volume_tier'] ? ('1 ' + props['_volume_tier']) : '1 Tier') : '1 Bundle';
@@ -230,9 +232,13 @@
           '<span class="sb-cart-chip"><span style="color:#059669; font-weight:bold;">•</span> ' + c + '</span>'
         ).join('');
 
-        // Pricing: line price is already the discounted $170.00 from Cart Transform
-        const discountedCents = item.line_price || item.final_line_price || 17000;
+        // Pricing calculation (robust for volume discount and multi-collection bundle)
         let originalCents = parseInt(props['_bundle_original_cents'] || '0', 10);
+        let discountedCents = parseInt(props['_bundle_discounted_cents'] || '0', 10);
+
+        if (!discountedCents || discountedCents <= 0) {
+          discountedCents = item.final_line_price || item.line_price || 17000;
+        }
         if (!originalCents || originalCents <= discountedCents) {
           originalCents = Math.round(discountedCents / (1 - (discountNum / 100)));
         }
@@ -265,7 +271,7 @@
               <div class="sb-cart-content">
                 <div class="sb-cart-header">
                   <h3 class="sb-cart-title">${bundleTitle}</h3>
-                  <span class="sb-cart-badge">🏷️ ${discountNum}% OFF BUNDLE</span>
+                  <span class="sb-cart-badge">🏷️ ${badgeLabel}</span>
                 </div>
                 <div class="sb-cart-components-box">
                   <div class="sb-cart-components-label">${componentsLabel}</div>
