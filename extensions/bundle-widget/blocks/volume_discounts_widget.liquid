@@ -117,9 +117,8 @@
                   </div>
                 {% endif %}
 
-                <!-- Left Column: Radio + Image + Info -->
+                <!-- Left Column: Image (replaces radio) OR Radio Dot + Info -->
                 <div class="vd-tier-left">
-                  <span class="vd-radio-dot"></span>
                   {% if tier.image != blank and tier.image.url != blank %}
                     <img 
                       src="{{ tier.image.url }}" 
@@ -127,6 +126,8 @@
                       class="vd-tier-thumb"
                       style="width: {{ tier.image.size | default: 48 }}px; height: {{ tier.image.size | default: 48 }}px; border-radius: {{ tier.image.radius | default: 6 }}px; object-fit: cover; flex-shrink: 0;"
                     />
+                  {% else %}
+                    <span class="vd-radio-dot"></span>
                   {% endif %}
                   <div class="vd-tier-info">
                     <div class="vd-title-row">

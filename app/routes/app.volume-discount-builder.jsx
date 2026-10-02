@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLoaderData, useSearchParams, useNavigate, useSubmit, Link } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
@@ -160,6 +160,8 @@ export default function VolumeDiscountBuilder() {
     const [previewSelectedTier, setPreviewSelectedTier] = useState(defaultTier);
     const [imageModalTierIdx, setImageModalTierIdx] = useState(null);
     const [openGiftDropdownIdx, setOpenGiftDropdownIdx] = useState(null);
+    const fileInputRef = useRef(null);
+    const [fileInputTierIdx, setFileInputTierIdx] = useState(null);
 
     // Initial Tiers matching the exact reference image with image & gift options
     const [tiers, setTiers] = useState(
@@ -269,7 +271,7 @@ export default function VolumeDiscountBuilder() {
         setTiers(next);
     };
 
-    // Open Shopify Resource Picker to select an image from store products for the tier
+    // Open Shopify Resource Picker to select an image, or fallback to file picker
     const handlePickImageForTier = async (tierIdx) => {
         if (typeof window !== "undefined" && window.shopify?.resourcePicker) {
             try {
@@ -282,12 +284,34 @@ export default function VolumeDiscountBuilder() {
                     const imgUrl = p.images?.[0]?.originalSrc || p.featuredImage?.url || "";
                     if (imgUrl) {
                         handleUpdateImage(tierIdx, { url: imgUrl });
+                        return;
                     }
                 }
             } catch (err) {
                 // Closed or cancelled
+                return;
             }
         }
+        // Fallback: trigger file input
+        setFileInputTierIdx(tierIdx);
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
+    const handleFileUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (file && fileInputTierIdx !== null) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const url = event.target?.result;
+                if (url) {
+                    handleUpdateImage(fileInputTierIdx, { url });
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+        e.target.value = "";
     };
 
     // Open Shopify Resource Picker to select a gift product for the tier
@@ -1187,14 +1211,30 @@ export default function VolumeDiscountBuilder() {
                                                             </label>
                                                         </>
                                                     ) : (
-                                                        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#4b5563", cursor: "pointer" }}>
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={t.gift?.excludeOverAmount || false}
-                                                                onChange={(e) => handleUpdateGift(idx, { excludeOverAmount: e.target.checked })}
-                                                            />
-                                                            Exclude shipping rates over a certain amount
-                                                        </label>
+                                                        <div>
+                                                            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#4b5563", cursor: "pointer" }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={t.gift?.excludeOverAmount || false}
+                                                                    onChange={(e) => handleUpdateGift(idx, { excludeOverAmount: e.target.checked })}
+                                                                />
+                                                                Exclude shipping rates over a certain amount
+                                                            </label>
+                                                            {t.gift?.excludeOverAmount && (
+                                                                <div style={{ paddingLeft: "24px", marginTop: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                                                                    <span style={{ fontSize: "12px", color: "#6b7280" }}>Max shipping amount: $</span>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        step="1"
+                                                                        placeholder="20"
+                                                                        value={t.gift?.maxShippingAmount || ""}
+                                                                        onChange={(e) => handleUpdateGift(idx, { maxShippingAmount: e.target.value })}
+                                                                        style={{ width: "90px", padding: "4px 8px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "12px" }}
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     )}
                                                     <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#4b5563", cursor: "pointer" }}>
                                                         <input
@@ -1307,36 +1347,10 @@ export default function VolumeDiscountBuilder() {
                                                     : "none",
                                             }}
                                         >
-                                            {/* Left Side: Radio + Image + Title + Tag + Subtitle */}
+                                            {/* Left Side: Radio OR Image + Title + Tag + Subtitle */}
                                             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                                {/* Custom Radio Button */}
-                                                <div
-                                                    style={{
-                                                        width: "22px",
-                                                        height: "22px",
-                                                        borderRadius: "50%",
-                                                        border: isSelected ? `2.5px solid ${accentColor}` : "2px solid #fcd34d",
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        flexShrink: 0,
-                                                        backgroundColor: "#ffffff",
-                                                    }}
-                                                >
-                                                    {isSelected && (
-                                                        <div
-                                                            style={{
-                                                                width: "10px",
-                                                                height: "10px",
-                                                                borderRadius: "50%",
-                                                                backgroundColor: accentColor,
-                                                            }}
-                                                        />
-                                                    )}
-                                                </div>
-
-                                                {/* Tier Image (Image 2) */}
-                                                {t.image?.url && (
+                                                {/* If tier has image, render image in place of circular radio button */}
+                                                {t.image?.url ? (
                                                     <img
                                                         src={t.image.url}
                                                         alt={t.title}
@@ -1349,6 +1363,32 @@ export default function VolumeDiscountBuilder() {
                                                             border: "1px solid #e5e7eb",
                                                         }}
                                                     />
+                                                ) : (
+                                                    /* Custom Radio Button */
+                                                    <div
+                                                        style={{
+                                                            width: "22px",
+                                                            height: "22px",
+                                                            borderRadius: "50%",
+                                                            border: isSelected ? `2.5px solid ${accentColor}` : "2px solid #fcd34d",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            flexShrink: 0,
+                                                            backgroundColor: "#ffffff",
+                                                        }}
+                                                    >
+                                                        {isSelected && (
+                                                            <div
+                                                                style={{
+                                                                    width: "10px",
+                                                                    height: "10px",
+                                                                    borderRadius: "50%",
+                                                                    backgroundColor: accentColor,
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </div>
                                                 )}
 
                                                 {/* Title & Subtitle */}
@@ -1510,125 +1550,81 @@ export default function VolumeDiscountBuilder() {
                                 {/* Dropzone */}
                                 <div
                                     style={{
-                                        border: "1.5px dashed #d1d5db",
+                                        position: "relative",
+                                        border: tiers[imageModalTierIdx].image?.url ? "1px solid #d1d5db" : "1.5px dashed #d1d5db",
                                         borderRadius: "10px",
                                         padding: "20px",
-                                        textAlign: "center",
-                                        backgroundColor: "#fafafa",
-                                        marginBottom: "16px",
+                                        minHeight: "110px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        backgroundColor: tiers[imageModalTierIdx].image?.url ? "#ffffff" : "#fafafa",
+                                        marginBottom: "20px",
                                     }}
                                 >
                                     {tiers[imageModalTierIdx].image?.url ? (
-                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                                        <>
                                             <img
                                                 src={tiers[imageModalTierIdx].image.url}
-                                                alt="Selected"
+                                                alt="Selected tier thumbnail"
+                                                onClick={() => handlePickImageForTier(imageModalTierIdx)}
                                                 style={{
-                                                    width: `${tiers[imageModalTierIdx].image.size || 64}px`,
-                                                    height: `${tiers[imageModalTierIdx].image.size || 64}px`,
+                                                    width: `${tiers[imageModalTierIdx].image.size || 48}px`,
+                                                    height: `${tiers[imageModalTierIdx].image.size || 48}px`,
                                                     borderRadius: `${tiers[imageModalTierIdx].image.radius ?? 6}px`,
                                                     objectFit: "cover",
                                                     border: "1px solid #e5e7eb",
+                                                    cursor: "pointer",
                                                 }}
+                                                title="Click to change image"
                                             />
-                                            <div style={{ display: "flex", gap: "8px" }}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handlePickImageForTier(imageModalTierIdx)}
-                                                    style={{
-                                                        padding: "6px 14px",
-                                                        backgroundColor: "#ffffff",
-                                                        border: "1px solid #d1d5db",
-                                                        borderRadius: "6px",
-                                                        fontSize: "12px",
-                                                        fontWeight: "600",
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    Change image
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleRemoveImage(imageModalTierIdx)}
-                                                    style={{
-                                                        padding: "6px 14px",
-                                                        backgroundColor: "#fee2e2",
-                                                        color: "#991b1b",
-                                                        border: "none",
-                                                        borderRadius: "6px",
-                                                        fontSize: "12px",
-                                                        fontWeight: "600",
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    Remove
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                                            {/* Trash button in top right matching screenshot */}
                                             <button
                                                 type="button"
-                                                onClick={() => handlePickImageForTier(imageModalTierIdx)}
+                                                onClick={() => handleRemoveImage(imageModalTierIdx)}
+                                                title="Remove image"
                                                 style={{
-                                                    padding: "8px 20px",
+                                                    position: "absolute",
+                                                    top: "12px",
+                                                    right: "12px",
+                                                    width: "32px",
+                                                    height: "32px",
+                                                    borderRadius: "6px",
+                                                    border: "1px solid #e5e7eb",
                                                     backgroundColor: "#ffffff",
-                                                    border: "1px solid #d1d5db",
-                                                    borderRadius: "8px",
-                                                    fontSize: "13px",
-                                                    fontWeight: "700",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
                                                     cursor: "pointer",
+                                                    color: "#6b7280",
                                                     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
                                                 }}
                                             >
-                                                Add image
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="3 6 5 6 21 6" />
+                                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                                </svg>
                                             </button>
-                                            <span style={{ fontSize: "12px", color: "#9ca3af" }}>or</span>
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    handleUpdateImage(imageModalTierIdx, {
-                                                        url: "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png",
-                                                        size: 48,
-                                                        radius: 6,
-                                                    })
-                                                }
-                                                style={{
-                                                    padding: "8px 16px",
-                                                    backgroundColor: "#1f2937",
-                                                    color: "#ffffff",
-                                                    border: "none",
-                                                    borderRadius: "8px",
-                                                    fontSize: "12px",
-                                                    fontWeight: "600",
-                                                    cursor: "pointer",
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    gap: "6px",
-                                                }}
-                                            >
-                                                <span>✨</span>
-                                                <span>Generate image</span>
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    <div style={{ marginTop: "12px" }}>
-                                        <input
-                                            type="text"
-                                            placeholder="Or enter image URL (https://...)"
-                                            value={tiers[imageModalTierIdx].image?.url || ""}
-                                            onChange={(e) => handleUpdateImage(imageModalTierIdx, { url: e.target.value })}
+                                        </>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => handlePickImageForTier(imageModalTierIdx)}
                                             style={{
-                                                width: "100%",
-                                                padding: "7px 10px",
-                                                borderRadius: "6px",
-                                                border: "1px solid #d1d5db",
-                                                fontSize: "12px",
+                                                padding: "8px 22px",
                                                 backgroundColor: "#ffffff",
+                                                border: "1px solid #d1d5db",
+                                                borderRadius: "8px",
+                                                fontSize: "13px",
+                                                fontWeight: "600",
+                                                color: "#111827",
+                                                cursor: "pointer",
+                                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
                                             }}
-                                        />
-                                    </div>
+                                        >
+                                            Add image
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Size slider */}
@@ -1755,32 +1751,8 @@ export default function VolumeDiscountBuilder() {
                                             )}
 
                                             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                                {/* Radio */}
-                                                <div
-                                                    style={{
-                                                        width: "22px",
-                                                        height: "22px",
-                                                        borderRadius: "50%",
-                                                        border: `2.5px solid ${accentColor}`,
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        flexShrink: 0,
-                                                        backgroundColor: "#ffffff",
-                                                    }}
-                                                >
-                                                    <div
-                                                        style={{
-                                                            width: "10px",
-                                                            height: "10px",
-                                                            borderRadius: "50%",
-                                                            backgroundColor: accentColor,
-                                                        }}
-                                                    />
-                                                </div>
-
-                                                {/* Image */}
-                                                {mt.image?.url && (
+                                                {/* If tier has image, render image in place of circular radio button */}
+                                                {mt.image?.url ? (
                                                     <img
                                                         src={mt.image.url}
                                                         alt={mt.title}
@@ -1793,6 +1765,30 @@ export default function VolumeDiscountBuilder() {
                                                             border: "1px solid #e5e7eb",
                                                         }}
                                                     />
+                                                ) : (
+                                                    /* Circular Radio */
+                                                    <div
+                                                        style={{
+                                                            width: "22px",
+                                                            height: "22px",
+                                                            borderRadius: "50%",
+                                                            border: `2.5px solid ${accentColor}`,
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            flexShrink: 0,
+                                                            backgroundColor: "#ffffff",
+                                                        }}
+                                                    >
+                                                        <div
+                                                            style={{
+                                                                width: "10px",
+                                                                height: "10px",
+                                                                borderRadius: "50%",
+                                                                backgroundColor: accentColor,
+                                                            }}
+                                                        />
+                                                    </div>
                                                 )}
 
                                                 <div>
@@ -1861,6 +1857,14 @@ export default function VolumeDiscountBuilder() {
                 </div>
             )}
 
+            {/* Hidden File Input for Image Upload */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept="image/*"
+                style={{ display: "none" }}
+            />
         </s-page>
     );
 }
