@@ -36,6 +36,18 @@ query CartTransformRunInput {
       bundleParentVariantId: attribute(key: "_bundle_parent_variant_id") {
         value
       }
+      bundleType: attribute(key: "_bundle_type") {
+        value
+      }
+      bundleOriginalCents: attribute(key: "_bundle_original_cents") {
+        value
+      }
+      bundleDiscountedCents: attribute(key: "_bundle_discounted_cents") {
+        value
+      }
+      volumeTier: attribute(key: "_volume_tier") {
+        value
+      }
     }
   }
 }

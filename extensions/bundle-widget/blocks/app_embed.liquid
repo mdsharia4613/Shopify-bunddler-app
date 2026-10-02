@@ -207,9 +207,14 @@
         row.classList.add('sb-card-applied');
 
         // Extract bundle metadata
+        const isVolume = props['_bundle_type'] === 'volume_discount';
         const discountNum = parseFloat(props['_bundle_discount_num'] || '15');
         const bundleTitle = props['_bundle_title'] || ('Bundle: ' + (props['_bundle_components'] || props['Includes'] || item.product_title));
         const bundleImage = props['_bundle_image'] || item.image || 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png';
+        const badgeLabel = isVolume ? (discountNum + '% OFF DISCOUNT') : (discountNum + '% OFF BUNDLE');
+        const componentsLabel = isVolume ? 'Included in this tier:' : 'Included in this bundle:';
+        const removeLabel = isVolume ? 'Remove' : 'Remove Complete Bundle';
+        const qtyLabel = isVolume ? (props['_volume_tier'] ? ('1 ' + props['_volume_tier']) : '1 Tier') : '1 Bundle';
 
         // Extract components list for chips
         let components = [];
@@ -263,12 +268,12 @@
                   <span class="sb-cart-badge">🏷️ ${discountNum}% OFF BUNDLE</span>
                 </div>
                 <div class="sb-cart-components-box">
-                  <div class="sb-cart-components-label">Included in this bundle:</div>
+                  <div class="sb-cart-components-label">${componentsLabel}</div>
                   <div class="sb-cart-components-list">
                     ${chipsHtml}
                   </div>
                 </div>
-                <button type="button" class="sb-cart-remove-btn" data-item-key="${item.key}">Remove Complete Bundle</button>
+                <button type="button" class="sb-cart-remove-btn" data-item-key="${item.key}">${removeLabel}</button>
               </div>
             </div>
           `;
@@ -290,11 +295,11 @@
           }
         }
 
-        // Lock Quantity column to "1 Bundle"
+        // Lock Quantity column
         if (qtyCell) {
           qtyCell.innerHTML = `
             <div class="sb-cart-qty-pill">
-              1 Bundle
+              ${qtyLabel}
             </div>
           `;
         }

@@ -45,20 +45,60 @@ export function cartTransformRun(input: CartTransformRunInput): CartTransformRun
       })
       .join(" + ");
 
-    // Bundle title format requested: "Bundle: product 1 + product 3"
-    const title = firstLine.bundleTitle?.value || `Bundle: ${componentTitles}`;
-
     // Calculate discount percentage
     const discountRaw = firstLine.bundleDiscount?.value;
     const discountPercent = discountRaw ? parseFloat(discountRaw.replace('%', '')) : 0;
 
-    // Sub-items string: "product 1, product 3"
+    // Bundle title: if provided (e.g. "product 1 (Duo)"), use it; else fallback
+    const title = firstLine.bundleTitle?.value || `Bundle: ${componentTitles}`;
+
+    // Sub-items string: "product 1, product 3" or "product 1 x 2"
     const includesList = firstLine.bundleComponents?.value || lines
       .map((l) => ('product' in l.merchandise && l.merchandise.product?.title) || ('title' in l.merchandise && l.merchandise.title) || "")
       .filter(Boolean)
       .join(", ");
 
     const imageUrl = firstLine.bundleImage?.value;
+
+    // Attributes to retain on the merged line
+    const attributes: { key: string; value: string }[] = [
+      { key: "Includes", value: includesList },
+      { key: "_bundle_group", value: groupId }
+    ];
+
+    if (firstLine.bundleTitle?.value) {
+      attributes.push({ key: "_bundle_title", value: firstLine.bundleTitle.value });
+    }
+    if (firstLine.bundleDiscount?.value) {
+      attributes.push({ key: "_bundle_discount", value: firstLine.bundleDiscount.value });
+    }
+    if (discountPercent > 0) {
+      attributes.push({ key: "_bundle_discount_num", value: discountPercent.toString() });
+    }
+    if (firstLine.bundleComponents?.value) {
+      attributes.push({ key: "_bundle_components", value: firstLine.bundleComponents.value });
+    }
+    if (imageUrl) {
+      attributes.push({ key: "_bundle_image", value: imageUrl });
+    }
+    if (firstLine.bundleType?.value) {
+      attributes.push({ key: "_bundle_type", value: firstLine.bundleType.value });
+    }
+    if (firstLine.volumeTier?.value) {
+      attributes.push({ key: "_volume_tier", value: firstLine.volumeTier.value });
+    }
+
+    // Original and discounted cents for UI display
+    const totalOriginalCents = lines.reduce((sum, l) => {
+      const amt = parseFloat(l.cost.amountPerQuantity.amount || "0");
+      return sum + Math.round(amt * 100) * l.quantity;
+    }, 0);
+    const discountedCents = Math.round(totalOriginalCents * (1 - discountPercent / 100));
+
+    const origCentsVal = firstLine.bundleOriginalCents?.value || totalOriginalCents.toString();
+    const discCentsVal = firstLine.bundleDiscountedCents?.value || discountedCents.toString();
+    attributes.push({ key: "_bundle_original_cents", value: origCentsVal });
+    attributes.push({ key: "_bundle_discounted_cents", value: discCentsVal });
 
     operations.push({
       linesMerge: {
@@ -73,10 +113,7 @@ export function cartTransformRun(input: CartTransformRunInput): CartTransformRun
             value: discountPercent,
           },
         } : undefined,
-        attributes: [
-          { key: "Includes", value: includesList },
-          { key: "_bundle_group", value: groupId }
-        ],
+        attributes,
         image: imageUrl ? { url: imageUrl } : undefined,
       },
     });

@@ -514,7 +514,7 @@
     }
   </style>
 
-  <script>
+    <script>
     (function() {
       const container = document.getElementById('vd-widget-{{ block.id }}');
       if (!container) return;
@@ -523,6 +523,8 @@
       const actionBtn = document.getElementById('vd-btn-{{ block.id }}');
       const feedbackEl = document.getElementById('vd-feedback-{{ block.id }}');
       let currentVariantId = "{{ current_variant.id }}";
+      let currentProductTitle = {{ product.title | json }};
+      let currentProductImage = {{ product.featured_image | image_url: width: 400 | json }};
       let basePrice = {{ base_price }};
 
       function formatMoney(cents) {
@@ -533,14 +535,14 @@
       }
 
       function syncThemeQuantity(qty) {
-        const productForm = container.closest('form[action*="/cart/add"]') || document.querySelector('form[action*="/cart/add"]');
-        if (productForm) {
-          const qtyInput = productForm.querySelector('input[name="quantity"]');
-          if (qtyInput) {
+        const productForms = document.querySelectorAll('form[action*="/cart/add"]');
+        productForms.forEach(productForm => {
+          const qtyInputs = productForm.querySelectorAll('input[name="quantity"], input.quantity__input');
+          qtyInputs.forEach(qtyInput => {
             qtyInput.value = qty;
             qtyInput.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        }
+          });
+        });
       }
 
       function selectTier(item) {
@@ -592,6 +594,9 @@
         if (evt.detail && evt.detail.variant) {
           currentVariantId = evt.detail.variant.id;
           basePrice = evt.detail.variant.price;
+          if (evt.detail.variant.featured_image && evt.detail.variant.featured_image.src) {
+            currentProductImage = evt.detail.variant.featured_image.src;
+          }
           updateTierPrices();
         }
       });
@@ -632,93 +637,176 @@
         });
       }
 
-      // Add to cart action
-      if (actionBtn) {
-        actionBtn.addEventListener('click', async function() {
-          const selected = container.querySelector('.vd-tier-row.is-selected');
-          if (!selected) return;
+      // Centralized Volume Add to Cart handler
+      async function handleVolumeAddToCart(triggerSource) {
+        const selected = container.querySelector('.vd-tier-row.is-selected');
+        if (!selected) return;
 
-          const qty = parseInt(selected.getAttribute('data-qty') || '1', 10);
-          const discount = selected.getAttribute('data-discount') || '0';
-          const tierTitle = selected.querySelector('.vd-tier-title') ? selected.querySelector('.vd-tier-title').textContent.trim() : 'Tier';
-          const giftType = selected.getAttribute('data-gift-type');
-          const giftVariantId = selected.getAttribute('data-gift-variant-id');
+        const qty = parseInt(selected.getAttribute('data-qty') || '1', 10);
+        const discount = parseFloat(selected.getAttribute('data-discount') || '0');
+        const tierTitle = selected.querySelector('.vd-tier-title') ? selected.querySelector('.vd-tier-title').textContent.trim() : (selected.getAttribute('data-title') || 'Tier');
+        const giftType = selected.getAttribute('data-gift-type');
+        const giftVariantId = selected.getAttribute('data-gift-variant-id');
 
-          const btnText = actionBtn.querySelector('.vd-btn-text');
-          const btnLoader = actionBtn.querySelector('.vd-btn-loader');
+        const btnText = actionBtn ? actionBtn.querySelector('.vd-btn-text') : null;
+        const btnLoader = actionBtn ? actionBtn.querySelector('.vd-btn-loader') : null;
 
+        if (actionBtn) {
           actionBtn.disabled = true;
           if (btnText) btnText.style.display = 'none';
           if (btnLoader) btnLoader.style.display = 'inline-block';
-          if (feedbackEl) feedbackEl.style.display = 'none';
+        }
+        if (feedbackEl) feedbackEl.style.display = 'none';
 
-          try {
-            const items = [{
-              id: parseInt(currentVariantId, 10),
-              quantity: qty,
-              properties: {
-                '_bundle_type': 'volume_discount',
-                '_volume_tier': tierTitle,
-                '_volume_discount': discount + '%'
-              }
-            }];
+        const themeBtn = document.querySelector('form[action*="/cart/add"] [name="add"], .product-form__submit');
+        if (themeBtn && triggerSource === 'theme') {
+          themeBtn.setAttribute('aria-disabled', 'true');
+          themeBtn.classList.add('loading');
+        }
 
-            // If a free gift product is configured, add to cart with 100% discount
-            if (giftType === 'gift' && giftVariantId) {
-              const cleanGid = giftVariantId.split('/').pop();
+        try {
+          const rawCents = basePrice * qty;
+          const savedCents = Math.round(rawCents * (discount / 100));
+          const finalCents = rawCents - savedCents;
+
+          let items = [];
+
+          if (qty >= 2 && discount > 0) {
+            // Cart Transform linesMerge bundle group
+            const bundleGroupId = 'vd_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+            for (let i = 0; i < qty; i++) {
               items.push({
-                id: parseInt(cleanGid, 10),
+                id: parseInt(currentVariantId, 10),
                 quantity: 1,
                 properties: {
-                  '_bundle_type': 'volume_discount_gift',
-                  '_free_gift': 'true',
-                  '_bundle_parent': tierTitle
+                  '_bundle_type': 'volume_discount',
+                  '_bundle_group': bundleGroupId,
+                  '_bundle_title': currentProductTitle + ' (' + tierTitle + ')',
+                  '_bundle_discount': discount + '%',
+                  '_bundle_discount_num': discount.toString(),
+                  '_bundle_original_cents': rawCents.toString(),
+                  '_bundle_discounted_cents': finalCents.toString(),
+                  '_bundle_components': currentProductTitle + ' x ' + qty,
+                  '_bundle_image': currentProductImage || '',
+                  '_bundle_parent_variant_id': 'gid://shopify/ProductVariant/' + currentVariantId,
+                  '_volume_tier': tierTitle,
+                  '_bundle_item_index': (i + 1).toString()
                 }
               });
             }
-
-            const bodyPayload = { items };
-            if (giftType === 'shipping') {
-              bodyPayload.attributes = {
-                '_free_shipping': 'true',
-                '_volume_tier': tierTitle
-              };
-            }
-
-            const response = await fetch('/cart/add.js', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-              },
-              body: JSON.stringify(bodyPayload)
+          } else {
+            // Standard single item
+            items.push({
+              id: parseInt(currentVariantId, 10),
+              quantity: qty
             });
+          }
 
-            if (response.ok) {
-              if (feedbackEl) {
-                feedbackEl.className = 'vd-feedback success';
-                feedbackEl.textContent = '🎉 Added to cart!';
-                feedbackEl.style.display = 'block';
+          // If a free gift product is configured, add to cart
+          if (giftType === 'gift' && giftVariantId) {
+            const cleanGid = giftVariantId.split('/').pop();
+            items.push({
+              id: parseInt(cleanGid, 10),
+              quantity: 1,
+              properties: {
+                '_bundle_type': 'volume_discount_gift',
+                '_free_gift': 'true',
+                '_bundle_parent': tierTitle
               }
-              setTimeout(function() {
-                window.location.href = '/cart';
-              }, 500);
-            } else {
-              const err = await response.json();
-              throw new Error(err.description || 'Could not add to cart.');
+            });
+          }
+
+          const bodyPayload = { items };
+          if (giftType === 'shipping') {
+            bodyPayload.attributes = {
+              '_free_shipping': 'true',
+              '_volume_tier': tierTitle
+            };
+          }
+
+          const response = await fetch('/cart/add.js', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(bodyPayload)
+          });
+
+          if (response.ok) {
+            if (feedbackEl) {
+              feedbackEl.className = 'vd-feedback success';
+              feedbackEl.textContent = '✓ Added to cart!';
+              feedbackEl.style.display = 'block';
             }
-          } catch (err) {
+            setTimeout(function() {
+              window.location.href = '/cart';
+            }, 350);
+          } else {
+            const err = await response.json();
+            throw new Error(err.description || 'Could not add to cart.');
+          }
+        } catch (err) {
+          if (actionBtn) {
             actionBtn.disabled = false;
             if (btnText) btnText.style.display = 'inline-block';
             if (btnLoader) btnLoader.style.display = 'none';
-            if (feedbackEl) {
-              feedbackEl.className = 'vd-feedback error';
-              feedbackEl.textContent = err.message || 'Error adding to cart.';
-              feedbackEl.style.display = 'block';
-            }
           }
+          if (themeBtn && triggerSource === 'theme') {
+            themeBtn.removeAttribute('aria-disabled');
+            themeBtn.classList.remove('loading');
+          }
+          if (feedbackEl) {
+            feedbackEl.className = 'vd-feedback error';
+            feedbackEl.textContent = err.message || 'Error adding to cart.';
+            feedbackEl.style.display = 'block';
+          }
+        }
+      }
+
+      // Add to cart action on widget button
+      if (actionBtn) {
+        actionBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          handleVolumeAddToCart('widget');
         });
       }
+
+      // Intercept theme's native Add to Cart button and form submission
+      function setupThemeInterception() {
+        const themeForms = document.querySelectorAll('form[action*="/cart/add"]');
+        themeForms.forEach(f => {
+          f.addEventListener('submit', function(e) {
+            const selected = container.querySelector('.vd-tier-row.is-selected');
+            if (selected) {
+              const qty = parseInt(selected.getAttribute('data-qty') || '1', 10);
+              const discount = parseFloat(selected.getAttribute('data-discount') || '0');
+              if (qty >= 2 && discount > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleVolumeAddToCart('theme');
+              }
+            }
+          }, true);
+        });
+
+        const themeButtons = document.querySelectorAll('form[action*="/cart/add"] button[type="submit"], form[action*="/cart/add"] [name="add"], .product-form__submit');
+        themeButtons.forEach(btn => {
+          btn.addEventListener('click', function(e) {
+            const selected = container.querySelector('.vd-tier-row.is-selected');
+            if (selected) {
+              const qty = parseInt(selected.getAttribute('data-qty') || '1', 10);
+              const discount = parseFloat(selected.getAttribute('data-discount') || '0');
+              if (qty >= 2 && discount > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleVolumeAddToCart('theme');
+              }
+            }
+          }, true);
+        });
+      }
+      setupThemeInterception();
 
     })();
   </script>
