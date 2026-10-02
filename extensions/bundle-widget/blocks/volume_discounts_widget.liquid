@@ -9,11 +9,43 @@
 {% endcomment %}
 
 {% if product %}
-  {% assign current_variant = product.selected_or_first_available_variant %}
-  {% assign base_price = current_variant.price %}
-
   {% comment %} Read Published Volume Discount from App Metafield {% endcomment %}
   {% assign vd_meta = app.metafields.smart_bundles.active_volume_discount.value %}
+
+  {% comment %} Target Eligibility Check (All products / Selected products / Selected collections) {% endcomment %}
+  {% assign is_eligible = false %}
+  {% if vd_meta == blank %}
+    {% assign is_eligible = true %}
+  {% elsif vd_meta.active == false %}
+    {% assign is_eligible = false %}
+  {% elsif vd_meta.appliesTo == blank or vd_meta.appliesTo == 'all' %}
+    {% assign is_eligible = true %}
+  {% elsif vd_meta.appliesTo == 'products' %}
+    {% assign current_pid = product.id | append: "" %}
+    {% for pid in vd_meta.selectedProductIds %}
+      {% assign clean_pid = pid | split: "/" | last %}
+      {% if clean_pid == current_pid %}
+        {% assign is_eligible = true %}
+        {% break %}
+      {% endif %}
+    {% endfor %}
+  {% elsif vd_meta.appliesTo == 'collections' %}
+    {% for col in product.collections %}
+      {% assign current_cid = col.id | append: "" %}
+      {% for cid in vd_meta.selectedCollectionIds %}
+        {% assign clean_cid = cid | split: "/" | last %}
+        {% if clean_cid == current_cid %}
+          {% assign is_eligible = true %}
+          {% break %}
+        {% endif %}
+      {% endfor %}
+      {% if is_eligible %}{% break %}{% endif %}
+    {% endfor %}
+  {% endif %}
+
+{% if is_eligible %}
+  {% assign current_variant = product.selected_or_first_available_variant %}
+  {% assign base_price = current_variant.price %}
 
   {% assign display_accent = block.settings.accent_color %}
   {% assign display_header_title = block.settings.header_title %}
@@ -582,6 +614,7 @@
 
     })();
   </script>
+  {% endif %}
 {% endif %}
 
 {% schema %}

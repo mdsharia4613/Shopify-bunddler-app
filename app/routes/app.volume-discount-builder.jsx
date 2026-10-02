@@ -3,7 +3,7 @@ import { useLoaderData, useSearchParams, useNavigate, useSubmit, Link } from "re
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 
-// ১. Loader: এডিট মোড হলে ডাটা লোড করবে
+// ১. Loader: এডিট মোড হলে ডাটা লোড করবে এবং স্টোরের প্রোডাক্ট ও কালেকশন ফেচ করবে
 export const loader = async ({ request }) => {
     const { admin } = await authenticate.admin(request);
     const url = new URL(request.url);
@@ -16,10 +16,78 @@ export const loader = async ({ request }) => {
         });
     }
 
-    return { existingBundle };
+    // Collections query
+    let storeCollections = [];
+    try {
+        const colRes = await admin.graphql(
+            `#graphql
+            query getCollections {
+                collections(first: 50) {
+                    edges {
+                        node {
+                            id
+                            title
+                            handle
+                            productsCount {
+                                count
+                            }
+                        }
+                    }
+                }
+            }`
+        );
+        const colJson = await colRes.json();
+        storeCollections = colJson.data?.collections?.edges?.map((e) => ({
+            id: e.node.id,
+            title: e.node.title,
+            handle: e.node.handle,
+            count: e.node.productsCount?.count || 0,
+        })) || [];
+    } catch (e) {
+        console.error("Collections fetch error:", e);
+    }
+
+    // Products query
+    let storeProducts = [];
+    try {
+        const prodRes = await admin.graphql(
+            `#graphql
+            query getProducts {
+                products(first: 50) {
+                    edges {
+                        node {
+                            id
+                            title
+                            featuredImage {
+                                url
+                            }
+                            variants(first: 1) {
+                                edges {
+                                    node {
+                                        price
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }`
+        );
+        const prodJson = await prodRes.json();
+        storeProducts = prodJson.data?.products?.edges?.map((e) => ({
+            id: e.node.id,
+            title: e.node.title,
+            imageUrl: e.node.featuredImage?.url || "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png",
+            price: parseFloat(e.node.variants?.edges[0]?.node?.price || "100.00"),
+        })) || [];
+    } catch (e) {
+        console.error("Products fetch error:", e);
+    }
+
+    return { existingBundle, storeProducts, storeCollections };
 };
 
-// ২. Action: ডাটাবেসে সেভ করবে এবং শপিফাই মেটাফিল্ডে পাবলিশ করবে
+// ২. Action: ডাটাবেসে সেভ করবে এবং শপিফাই মেটাফিল্ডে টার্গেটিং সহ পাবলিশ করবে
 export const action = async ({ request }) => {
     const { admin } = await authenticate.admin(request);
     const formData = await request.formData();
@@ -60,6 +128,17 @@ export const action = async ({ request }) => {
         });
     }
 
+    // Clean numeric IDs for Liquid check
+    const cleanProductIds = (parsedConfig.selectedProducts || []).map((p) => {
+        const parts = String(p.id).split("/");
+        return parts[parts.length - 1];
+    });
+
+    const cleanCollectionIds = (parsedConfig.selectedCollections || []).map((c) => {
+        const parts = String(c.id).split("/");
+        return parts[parts.length - 1];
+    });
+
     // Shopify App Metafield-এ সেভ করা যাতে স্টোরফ্রন্ট উইজেট লাইভ দেখতে পায়
     try {
         const shopRes = await admin.graphql(`query { shop { id } }`);
@@ -90,17 +169,15 @@ export const action = async ({ request }) => {
                                     title: savedBundle.title,
                                     headerTitle: parsedConfig.headerTitle || "",
                                     headerSubtitle: parsedConfig.headerSubtitle || "",
-                                    footerHeading: parsedConfig.footerHeading || "",
-                                    footerSubheading: parsedConfig.footerSubheading || "",
                                     buttonText: parsedConfig.buttonText || "Choose",
                                     accentColor: parsedConfig.accentColor || "#f59e0b",
-                                    cardBg: parsedConfig.cardBg || "#ffffff",
-                                    borderColor: parsedConfig.borderColor || "#e5e7eb",
-                                    textColor: parsedConfig.textColor || "#111827",
-                                    btnBg: parsedConfig.btnBg || "#111827",
-                                    btnTextColor: parsedConfig.btnTextColor || "#ffffff",
                                     defaultTier: parsedConfig.defaultTier || 2,
                                     tiers: parsedConfig.tiers || [],
+                                    appliesTo: parsedConfig.appliesTo || "all",
+                                    selectedProductIds: cleanProductIds,
+                                    selectedCollectionIds: cleanCollectionIds,
+                                    selectedProductsInfo: parsedConfig.selectedProducts || [],
+                                    selectedCollectionsInfo: parsedConfig.selectedCollections || [],
                                     active: true,
                                     updatedAt: new Date().toISOString(),
                                 }),
@@ -121,7 +198,7 @@ export const action = async ({ request }) => {
 };
 
 export default function VolumeDiscountBuilder() {
-    const { existingBundle } = useLoaderData();
+    const { existingBundle, storeProducts, storeCollections } = useLoaderData();
     const [searchParams] = useSearchParams();
     const submit = useSubmit();
     const navigate = useNavigate();
@@ -141,6 +218,16 @@ export default function VolumeDiscountBuilder() {
     const [accentColor, setAccentColor] = useState(parsedInitial?.accentColor || brandColorParam);
     const [defaultTier, setDefaultTier] = useState(parsedInitial?.defaultTier || 2);
     const [buttonText, setButtonText] = useState(parsedInitial?.buttonText || "Choose");
+
+    // Product Targeting State (All products / Selected products / Selected collections)
+    const [appliesTo, setAppliesTo] = useState(parsedInitial?.appliesTo || "all");
+    const [selectedProducts, setSelectedProducts] = useState(parsedInitial?.selectedProducts || []);
+    const [selectedCollections, setSelectedCollections] = useState(parsedInitial?.selectedCollections || []);
+
+    // Fallback Picker Modals state (in case App Bridge resourcePicker is offline)
+    const [showProductModal, setShowProductModal] = useState(false);
+    const [showCollectionModal, setShowCollectionModal] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
 
     // Interactive preview selected tier state
     const [previewSelectedTier, setPreviewSelectedTier] = useState(defaultTier);
@@ -217,10 +304,82 @@ export default function VolumeDiscountBuilder() {
         }
     };
 
+    // Open Product Picker (Native App Bridge with Fallback)
+    const handleOpenProductPicker = async () => {
+        if (typeof window !== "undefined" && window.shopify?.resourcePicker) {
+            try {
+                const selected = await window.shopify.resourcePicker({
+                    type: "product",
+                    multiple: true,
+                    selectionIds: selectedProducts.map((p) => ({ id: p.id })),
+                });
+                if (selected && selected.length > 0) {
+                    const mapped = selected.map((p) => ({
+                        id: p.id,
+                        title: p.title,
+                        imageUrl: p.images?.[0]?.originalSrc || p.featuredImage?.url || "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png",
+                        price: parseFloat(p.variants?.[0]?.price || "100.00"),
+                    }));
+                    setSelectedProducts(mapped);
+                    return;
+                }
+            } catch (err) {
+                console.log("App Bridge resourcePicker fallback to modal:", err);
+            }
+        }
+        setShowProductModal(true);
+    };
+
+    // Open Collection Picker (Native App Bridge with Fallback)
+    const handleOpenCollectionPicker = async () => {
+        if (typeof window !== "undefined" && window.shopify?.resourcePicker) {
+            try {
+                const selected = await window.shopify.resourcePicker({
+                    type: "collection",
+                    multiple: true,
+                    selectionIds: selectedCollections.map((c) => ({ id: c.id })),
+                });
+                if (selected && selected.length > 0) {
+                    const mapped = selected.map((c) => ({
+                        id: c.id,
+                        title: c.title,
+                        handle: c.handle,
+                        count: c.productsCount?.count || 0,
+                    }));
+                    setSelectedCollections(mapped);
+                    return;
+                }
+            } catch (err) {
+                console.log("App Bridge resourcePicker fallback to modal:", err);
+            }
+        }
+        setShowCollectionModal(true);
+    };
+
+    // Remove single product
+    const handleRemoveProduct = (productId) => {
+        setSelectedProducts(selectedProducts.filter((p) => p.id !== productId));
+    };
+
+    // Remove single collection
+    const handleRemoveCollection = (collectionId) => {
+        setSelectedCollections(selectedCollections.filter((c) => c.id !== collectionId));
+    };
+
     // Publish / Save
     const handlePublish = () => {
         if (!title.trim()) {
             alert("Please enter a bundle title");
+            return;
+        }
+
+        if (appliesTo === "products" && selectedProducts.length === 0) {
+            alert("Please select at least 1 product, or choose 'All products'.");
+            return;
+        }
+
+        if (appliesTo === "collections" && selectedCollections.length === 0) {
+            alert("Please select at least 1 collection, or choose 'All products'.");
             return;
         }
 
@@ -233,6 +392,9 @@ export default function VolumeDiscountBuilder() {
             accentColor,
             defaultTier: Number(defaultTier),
             tiers,
+            appliesTo,
+            selectedProducts,
+            selectedCollections,
         };
 
         const formData = new FormData();
@@ -246,8 +408,10 @@ export default function VolumeDiscountBuilder() {
         submit(formData, { method: "POST" });
     };
 
-    // Sample price for preview calculation (same as image: $100.00 single)
-    const sampleItemPrice = 100.0;
+    // Sample price for preview calculation (dynamically uses 1st selected product's price if chosen)
+    const previewProduct = selectedProducts.length > 0 ? selectedProducts[0] : null;
+    const sampleItemPrice = previewProduct?.price || 100.0;
+    const previewItemTitle = previewProduct?.title || "Demo Product";
 
     return (
         <s-page heading="Volume Discounts Customizer">
@@ -256,7 +420,7 @@ export default function VolumeDiscountBuilder() {
             {/* Header Action Bar */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
                 <p style={{ margin: 0, color: "#4b5563", fontSize: "14px" }}>
-                    Configure the exact discount price, savings pill, and badges. Live changes update in the preview!
+                    Configure products, discounts, and visual styling. Real-time changes update in the preview!
                 </p>
                 <div style={{ display: "flex", gap: "10px" }}>
                     <button
@@ -297,6 +461,190 @@ export default function VolumeDiscountBuilder() {
 
                 {/* বাম পাশ: সেটিংস */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+
+                    {/* ১. Products Targeting Section (আপনার ছবির হুবহু ৩টি রেডিও অপশন) */}
+                    <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e5e7eb", padding: "20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+                            <span style={{ fontSize: "18px" }}>🏷️</span>
+                            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#111827" }}>
+                                Products
+                            </h3>
+                        </div>
+
+                        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
+                            {/* Option 1: All products */}
+                            <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", fontWeight: appliesTo === "all" ? "600" : "400" }}>
+                                <input
+                                    type="radio"
+                                    name="appliesTo"
+                                    checked={appliesTo === "all"}
+                                    onChange={() => setAppliesTo("all")}
+                                    style={{ width: "16px", height: "16px", accentColor: "#111827", cursor: "pointer" }}
+                                />
+                                All products
+                            </label>
+
+                            {/* Option 2: Selected products */}
+                            <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", fontWeight: appliesTo === "products" ? "600" : "400" }}>
+                                <input
+                                    type="radio"
+                                    name="appliesTo"
+                                    checked={appliesTo === "products"}
+                                    onChange={() => setAppliesTo("products")}
+                                    style={{ width: "16px", height: "16px", accentColor: "#111827", cursor: "pointer" }}
+                                />
+                                Selected products
+                            </label>
+
+                            {/* Option 3: Selected collections */}
+                            <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "14px", fontWeight: appliesTo === "collections" ? "600" : "400" }}>
+                                <input
+                                    type="radio"
+                                    name="appliesTo"
+                                    checked={appliesTo === "collections"}
+                                    onChange={() => setAppliesTo("collections")}
+                                    style={{ width: "16px", height: "16px", accentColor: "#111827", cursor: "pointer" }}
+                                />
+                                Selected collections
+                            </label>
+                        </div>
+
+                        {/* Selected Products Picker Sub-panel */}
+                        {appliesTo === "products" && (
+                            <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "14px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                                    <span style={{ fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+                                        Products ({selectedProducts.length} selected)
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenProductPicker}
+                                        style={{
+                                            padding: "6px 14px",
+                                            backgroundColor: "#f3f4f6",
+                                            border: "1px solid #d1d5db",
+                                            borderRadius: "6px",
+                                            fontSize: "13px",
+                                            fontWeight: "600",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        🔍 Browse Products
+                                    </button>
+                                </div>
+
+                                {selectedProducts.length === 0 ? (
+                                    <div style={{ padding: "16px", textAlign: "center", backgroundColor: "#f9fafb", borderRadius: "8px", border: "1px dashed #d1d5db", color: "#6b7280", fontSize: "13px" }}>
+                                        No products selected. Click <strong>Browse Products</strong> to pick products.
+                                    </div>
+                                ) : (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "240px", overflowY: "auto" }}>
+                                        {selectedProducts.map((p) => (
+                                            <div
+                                                key={p.id}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "space-between",
+                                                    padding: "8px 12px",
+                                                    backgroundColor: "#f9fafb",
+                                                    border: "1px solid #e5e7eb",
+                                                    borderRadius: "8px",
+                                                }}
+                                            >
+                                                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                                    {p.imageUrl && (
+                                                        <img
+                                                            src={p.imageUrl}
+                                                            alt={p.title}
+                                                            style={{ width: "32px", height: "32px", borderRadius: "4px", objectFit: "cover", border: "1px solid #e5e7eb" }}
+                                                        />
+                                                    )}
+                                                    <div>
+                                                        <div style={{ fontSize: "13px", fontWeight: "600", color: "#111827" }}>{p.title}</div>
+                                                        <div style={{ fontSize: "11px", color: "#6b7280" }}>${p.price.toFixed(2)}</div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveProduct(p.id)}
+                                                    style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: "14px", padding: "4px" }}
+                                                    title="Remove product"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Selected Collections Picker Sub-panel */}
+                        {appliesTo === "collections" && (
+                            <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: "14px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                                    <span style={{ fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+                                        Collections ({selectedCollections.length} selected)
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenCollectionPicker}
+                                        style={{
+                                            padding: "6px 14px",
+                                            backgroundColor: "#f3f4f6",
+                                            border: "1px solid #d1d5db",
+                                            borderRadius: "6px",
+                                            fontSize: "13px",
+                                            fontWeight: "600",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        📁 Browse Collections
+                                    </button>
+                                </div>
+
+                                {selectedCollections.length === 0 ? (
+                                    <div style={{ padding: "16px", textAlign: "center", backgroundColor: "#f9fafb", borderRadius: "8px", border: "1px dashed #d1d5db", color: "#6b7280", fontSize: "13px" }}>
+                                        No collections selected. Click <strong>Browse Collections</strong> to pick collections.
+                                    </div>
+                                ) : (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "240px", overflowY: "auto" }}>
+                                        {selectedCollections.map((c) => (
+                                            <div
+                                                key={c.id}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "space-between",
+                                                    padding: "8px 12px",
+                                                    backgroundColor: "#f9fafb",
+                                                    border: "1px solid #e5e7eb",
+                                                    borderRadius: "8px",
+                                                }}
+                                            >
+                                                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                                    <span style={{ fontSize: "16px" }}>📁</span>
+                                                    <div>
+                                                        <div style={{ fontSize: "13px", fontWeight: "600", color: "#111827" }}>{c.title}</div>
+                                                        <div style={{ fontSize: "11px", color: "#6b7280" }}>{c.count} products</div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveCollection(c.id)}
+                                                    style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: "14px", padding: "4px" }}
+                                                    title="Remove collection"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
 
                     {/* General Settings */}
                     <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e5e7eb", padding: "20px" }}>
@@ -504,7 +852,7 @@ export default function VolumeDiscountBuilder() {
                             Live Storefront Preview
                         </span>
                         <span style={{ fontSize: "12px", color: "#6b7280" }}>
-                            Based on sample $100.00 item
+                            {previewProduct ? `Preview: ${previewItemTitle}` : "Based on sample $100 item"}
                         </span>
                     </div>
 
@@ -682,6 +1030,127 @@ export default function VolumeDiscountBuilder() {
                 </div>
 
             </div>
+
+            {/* Fallback Product Selection Modal */}
+            {showProductModal && (
+                <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+                    <div style={{ backgroundColor: "#fff", width: "500px", maxWidth: "90%", borderRadius: "12px", padding: "20px", maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700" }}>Select Products</h3>
+                            <button type="button" onClick={() => setShowProductModal(false)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: "16px" }}>✕</button>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Search products..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #d1d5db", marginBottom: "12px", fontSize: "13px" }}
+                        />
+                        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+                            {storeProducts.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase())).map((p) => {
+                                const isChecked = selectedProducts.some((sp) => sp.id === p.id);
+                                return (
+                                    <label
+                                        key={p.id}
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "10px",
+                                            padding: "8px 10px",
+                                            borderRadius: "6px",
+                                            cursor: "pointer",
+                                            backgroundColor: isChecked ? "#f0fdf4" : "#ffffff",
+                                            border: isChecked ? "1px solid #86efac" : "1px solid #e5e7eb",
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => {
+                                                if (isChecked) {
+                                                    setSelectedProducts(selectedProducts.filter((sp) => sp.id !== p.id));
+                                                } else {
+                                                    setSelectedProducts([...selectedProducts, p]);
+                                                }
+                                            }}
+                                        />
+                                        {p.imageUrl && (
+                                            <img src={p.imageUrl} alt={p.title} style={{ width: "32px", height: "32px", borderRadius: "4px", objectFit: "cover" }} />
+                                        )}
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: "13px", fontWeight: "600" }}>{p.title}</div>
+                                            <div style={{ fontSize: "11px", color: "#6b7280" }}>${p.price.toFixed(2)}</div>
+                                        </div>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowProductModal(false)}
+                            style={{ marginTop: "14px", padding: "10px", backgroundColor: "#111827", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer" }}
+                        >
+                            Done ({selectedProducts.length} selected)
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Fallback Collection Selection Modal */}
+            {showCollectionModal && (
+                <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+                    <div style={{ backgroundColor: "#fff", width: "500px", maxWidth: "90%", borderRadius: "12px", padding: "20px", maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700" }}>Select Collections</h3>
+                            <button type="button" onClick={() => setShowCollectionModal(false)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: "16px" }}>✕</button>
+                        </div>
+                        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+                            {storeCollections.map((c) => {
+                                const isChecked = selectedCollections.some((sc) => sc.id === c.id);
+                                return (
+                                    <label
+                                        key={c.id}
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "10px",
+                                            padding: "8px 10px",
+                                            borderRadius: "6px",
+                                            cursor: "pointer",
+                                            backgroundColor: isChecked ? "#f0fdf4" : "#ffffff",
+                                            border: isChecked ? "1px solid #86efac" : "1px solid #e5e7eb",
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => {
+                                                if (isChecked) {
+                                                    setSelectedCollections(selectedCollections.filter((sc) => sc.id !== c.id));
+                                                } else {
+                                                    setSelectedCollections([...selectedCollections, c]);
+                                                }
+                                            }}
+                                        />
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: "13px", fontWeight: "600" }}>📁 {c.title}</div>
+                                            <div style={{ fontSize: "11px", color: "#6b7280" }}>{c.count} products</div>
+                                        </div>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowCollectionModal(false)}
+                            style={{ marginTop: "14px", padding: "10px", backgroundColor: "#111827", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer" }}
+                        >
+                            Done ({selectedCollections.length} selected)
+                        </button>
+                    </div>
+                </div>
+            )}
+
         </s-page>
     );
 }
