@@ -85,7 +85,7 @@ export const loader = async ({ request }) => {
 
 // ২. Publish / Unpublish ও Delete হ্যান্ডেল করার ব্যাকএন্ড অ্যাকশন
 export const action = async ({ request }) => {
-  await authenticate.admin(request);
+  const { admin } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
   const bundleId = formData.get("bundleId");
@@ -94,10 +94,58 @@ export const action = async ({ request }) => {
     const currentStatus = formData.get("currentStatus");
     const nextStatus = currentStatus === "Active" ? "Draft" : "Active";
 
-    await db.bundle.update({
+    const updated = await db.bundle.update({
       where: { id: bundleId },
       data: { status: nextStatus },
     });
+
+    if (updated.strategy === "Volume Discounts") {
+      try {
+        const shopRes = await admin.graphql(`query { shop { id } }`);
+        const shopJson = await shopRes.json();
+        const shopId = shopJson.data?.shop?.id;
+        if (shopId) {
+          let parsedConfig = {};
+          try { parsedConfig = JSON.parse(updated.products); } catch (e) {}
+          await admin.graphql(
+            `#graphql
+            mutation setVolumeDiscountMetafield($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                userErrors { field message }
+              }
+            }`,
+            {
+              variables: {
+                metafields: [
+                  {
+                    ownerId: shopId,
+                    namespace: "$app:smart_bundles",
+                    key: "active_volume_discount",
+                    type: "json",
+                    value: JSON.stringify({
+                      id: updated.id,
+                      title: updated.title,
+                      headerTitle: parsedConfig.headerTitle || "",
+                      footerHeading: parsedConfig.footerHeading || "Quantity breaks for same product",
+                      footerSubheading: parsedConfig.footerSubheading || "Single, Duo, Trio volume tiers",
+                      buttonText: parsedConfig.buttonText || "Choose",
+                      accentColor: parsedConfig.accentColor || "#eab308",
+                      defaultTier: parsedConfig.defaultTier || 2,
+                      tiers: parsedConfig.tiers || [],
+                      active: nextStatus === "Active",
+                      updatedAt: new Date().toISOString(),
+                    }),
+                  },
+                ],
+              },
+            }
+          );
+        }
+      } catch (e) {
+        console.error("Status toggle metafield sync error:", e);
+      }
+    }
+
     return { success: true };
   }
 
@@ -362,7 +410,7 @@ export default function Dashboard() {
 
                           {/* Edit Bundle Button */}
                           <Link
-                            to={`/app/bundle-builder?id=${bundle.id}`}
+                            to={bundle.strategy === "Volume Discounts" ? `/app/volume-discount-builder?id=${bundle.id}` : `/app/bundle-builder?id=${bundle.id}`}
                             title="Edit bundle"
                             style={{
                               display: "inline-flex",

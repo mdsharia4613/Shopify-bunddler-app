@@ -1,0 +1,798 @@
+{% comment %}
+  Volume Discounts App Block
+  Supports both:
+  1. Live Sync from App Dashboard Metafields (when published from Smart Bundle App)
+  2. Native Theme Block Settings (fallback & theme editor customization)
+{% endcomment %}
+
+{% if product %}
+  {% assign current_variant = product.selected_or_first_available_variant %}
+  {% assign base_price = current_variant.price %}
+
+  {% comment %} Read Published Volume Discount from App Metafield {% endcomment %}
+  {% assign vd_meta = app.metafields.smart_bundles.active_volume_discount.value %}
+
+  {% assign display_accent = block.settings.accent_color %}
+  {% assign display_card_bg = block.settings.card_bg %}
+  {% assign display_text_color = block.settings.text_color %}
+  {% assign display_btn_bg = block.settings.btn_bg %}
+  {% assign display_btn_text = block.settings.btn_text_color %}
+  {% assign display_border_color = block.settings.border_color %}
+  {% assign display_button_text = block.settings.button_text %}
+  {% assign display_footer_heading = block.settings.footer_heading %}
+  {% assign display_footer_subheading = block.settings.footer_subheading %}
+  {% assign display_header_title = block.settings.header_title %}
+
+  {% if vd_meta %}
+    {% if vd_meta.accentColor != blank %}
+      {% assign display_accent = vd_meta.accentColor %}
+    {% endif %}
+    {% if vd_meta.buttonText != blank %}
+      {% assign display_button_text = vd_meta.buttonText %}
+    {% endif %}
+    {% if vd_meta.footerHeading != blank %}
+      {% assign display_footer_heading = vd_meta.footerHeading %}
+    {% endif %}
+    {% if vd_meta.footerSubheading != blank %}
+      {% assign display_footer_subheading = vd_meta.footerSubheading %}
+    {% endif %}
+    {% if vd_meta.headerTitle != blank %}
+      {% assign display_header_title = vd_meta.headerTitle %}
+    {% endif %}
+  {% endif %}
+
+  <div 
+    class="vd-widget-container" 
+    id="vd-widget-{{ block.id }}"
+    data-block-id="{{ block.id }}"
+    data-product-id="{{ product.id }}"
+    data-variant-id="{{ current_variant.id }}"
+    data-base-price="{{ base_price }}"
+    data-currency="{{ cart.currency.symbol }}"
+    data-meta-id="{{ vd_meta.id }}"
+    style="
+      --vd-accent: {{ display_accent }};
+      --vd-card-bg: {{ display_card_bg }};
+      --vd-text-color: {{ display_text_color }};
+      --vd-btn-bg: {{ display_btn_bg }};
+      --vd-btn-text: {{ display_btn_text }};
+      --vd-border-color: {{ display_border_color }};
+    "
+  >
+    <div class="vd-card">
+      <!-- Widget Header (Optional) -->
+      {% if display_header_title != blank %}
+        <div class="vd-header">
+          <h3 class="vd-main-title">{{ display_header_title }}</h3>
+          {% if block.settings.header_subtitle != blank %}
+            <p class="vd-main-subtitle">{{ block.settings.header_subtitle }}</p>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <!-- Tiers List -->
+      <div class="vd-tiers-list" role="radiogroup" aria-label="Volume Discount Tiers">
+        
+        {% if vd_meta != blank and vd_meta.tiers != blank and vd_meta.tiers.size > 0 %}
+          {% comment %} Render Dynamic Tiers Configured & Published from App {% endcomment %}
+          {% for tier in vd_meta.tiers %}
+            {% assign tier_idx = forloop.index %}
+            {% assign is_selected = false %}
+            {% if vd_meta.defaultTier == tier_idx %}
+              {% assign is_selected = true %}
+            {% elsif vd_meta.defaultTier == blank and forloop.first %}
+              {% assign is_selected = true %}
+            {% endif %}
+
+            <div 
+              class="vd-tier-item {% if is_selected %}is-selected{% endif %}"
+              data-tier="{{ tier_idx }}"
+              data-qty="{{ tier.qty }}"
+              data-discount="{{ tier.discount }}"
+              tabindex="0"
+              role="radio"
+              aria-checked="{% if is_selected %}true{% else %}false{% endif %}"
+            >
+              <div class="vd-tier-left">
+                <span class="vd-tier-radio"></span>
+                <span class="vd-tier-title">{{ tier.title }}</span>
+              </div>
+              <div class="vd-tier-right">
+                {% if tier.badge != blank %}
+                  <span class="vd-tier-badge vd-highlight-text">{{ tier.badge }}</span>
+                {% else %}
+                  <span class="vd-tier-price" data-tier-price="{{ tier_idx }}">
+                    {% assign t_raw = base_price | times: tier.qty %}
+                    {% assign t_disc = t_raw | times: tier.discount | divided_by: 100 %}
+                    {{ t_raw | minus: t_disc | money }}
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+
+        {% else %}
+          {% comment %} Fallback: Theme Editor Block Settings Tiers {% endcomment %}
+          
+          <!-- Tier 1 -->
+          {% if block.settings.tier_1_qty > 0 %}
+            <div 
+              class="vd-tier-item {% if block.settings.default_tier == '1' %}is-selected{% endif %}"
+              data-tier="1"
+              data-qty="{{ block.settings.tier_1_qty }}"
+              data-discount="{{ block.settings.tier_1_discount }}"
+              tabindex="0"
+              role="radio"
+              aria-checked="{% if block.settings.default_tier == '1' %}true{% else %}false{% endif %}"
+            >
+              <div class="vd-tier-left">
+                <span class="vd-tier-radio"></span>
+                <span class="vd-tier-title">{{ block.settings.tier_1_title }}</span>
+              </div>
+              <div class="vd-tier-right">
+                <span class="vd-tier-price" data-tier-price="1">
+                  {{ base_price | times: block.settings.tier_1_qty | money }}
+                </span>
+                {% if block.settings.tier_1_badge != blank %}
+                  <span class="vd-tier-badge">{{ block.settings.tier_1_badge }}</span>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+
+          <!-- Tier 2 -->
+          {% if block.settings.tier_2_qty > 0 %}
+            <div 
+              class="vd-tier-item {% if block.settings.default_tier == '2' %}is-selected{% endif %}"
+              data-tier="2"
+              data-qty="{{ block.settings.tier_2_qty }}"
+              data-discount="{{ block.settings.tier_2_discount }}"
+              tabindex="0"
+              role="radio"
+              aria-checked="{% if block.settings.default_tier == '2' %}true{% else %}false{% endif %}"
+            >
+              <div class="vd-tier-left">
+                <span class="vd-tier-radio"></span>
+                <span class="vd-tier-title">{{ block.settings.tier_2_title }}</span>
+              </div>
+              <div class="vd-tier-right">
+                {% if block.settings.tier_2_badge != blank %}
+                  <span class="vd-tier-badge vd-highlight-text">{{ block.settings.tier_2_badge }}</span>
+                {% else %}
+                  <span class="vd-tier-price" data-tier-price="2">
+                    {% assign t2_raw = base_price | times: block.settings.tier_2_qty %}
+                    {% assign t2_disc = t2_raw | times: block.settings.tier_2_discount | divided_by: 100 %}
+                    {{ t2_raw | minus: t2_disc | money }}
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+
+          <!-- Tier 3 -->
+          {% if block.settings.tier_3_qty > 0 %}
+            <div 
+              class="vd-tier-item {% if block.settings.default_tier == '3' %}is-selected{% endif %}"
+              data-tier="3"
+              data-qty="{{ block.settings.tier_3_qty }}"
+              data-discount="{{ block.settings.tier_3_discount }}"
+              tabindex="0"
+              role="radio"
+              aria-checked="{% if block.settings.default_tier == '3' %}true{% else %}false{% endif %}"
+            >
+              <div class="vd-tier-left">
+                <span class="vd-tier-radio"></span>
+                <span class="vd-tier-title">{{ block.settings.tier_3_title }}</span>
+              </div>
+              <div class="vd-tier-right">
+                {% if block.settings.tier_3_badge != blank %}
+                  <span class="vd-tier-badge vd-highlight-text">{{ block.settings.tier_3_badge }}</span>
+                {% else %}
+                  <span class="vd-tier-price" data-tier-price="3">
+                    {% assign t3_raw = base_price | times: block.settings.tier_3_qty %}
+                    {% assign t3_disc = t3_raw | times: block.settings.tier_3_discount | divided_by: 100 %}
+                    {{ t3_raw | minus: t3_disc | money }}
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+
+        {% endif %}
+
+      </div>
+
+      <!-- Description / Breaks Footer -->
+      {% if display_footer_heading != blank or display_footer_subheading != blank %}
+        <div class="vd-info-section">
+          {% if display_footer_heading != blank %}
+            <h4 class="vd-info-title">{{ display_footer_heading }}</h4>
+          {% endif %}
+          {% if display_footer_subheading != blank %}
+            <p class="vd-info-subtitle">{{ display_footer_subheading }}</p>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <!-- Action Button -->
+      {% if block.settings.show_button %}
+        <div class="vd-action-wrapper">
+          <button type="button" class="vd-btn" id="vd-btn-{{ block.id }}">
+            <span class="vd-btn-text">{{ display_button_text }}</span>
+            <span class="vd-btn-loader" style="display: none;">⏳ Adding...</span>
+          </button>
+          <div class="vd-feedback" id="vd-feedback-{{ block.id }}" style="display: none;"></div>
+        </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <style>
+    #vd-widget-{{ block.id }} {
+      margin: 20px 0;
+      width: 100%;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+
+    #vd-widget-{{ block.id }} * {
+      box-sizing: border-box;
+    }
+
+    #vd-widget-{{ block.id }} .vd-card {
+      background: var(--vd-card-bg, #ffffff);
+      border: 1px solid var(--vd-border-color, #e5e7eb);
+      border-radius: 16px;
+      padding: 20px 18px;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+      transition: all 0.25s ease;
+    }
+
+    #vd-widget-{{ block.id }} .vd-header {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    #vd-widget-{{ block.id }} .vd-main-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin: 0 0 4px;
+      color: var(--vd-text-color, #111827);
+    }
+
+    #vd-widget-{{ block.id }} .vd-main-subtitle {
+      font-size: 13px;
+      margin: 0;
+      color: #6b7280;
+    }
+
+    #vd-widget-{{ block.id }} .vd-tiers-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 16px;
+      border: 1px solid var(--vd-border-color, #e5e7eb);
+      border-radius: 10px;
+      cursor: pointer;
+      background: #ffffff;
+      color: var(--vd-text-color, #111827);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+      outline: none;
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-item:hover {
+      border-color: #cbd5e1;
+      transform: translateY(-1px);
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-item.is-selected {
+      border-color: var(--vd-accent, #eab308);
+      background: #fffdf5;
+      box-shadow: 0 0 0 1px var(--vd-accent, #eab308);
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-radio {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1.5px solid #d1d5db;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-item.is-selected .vd-tier-radio {
+      border-color: var(--vd-accent, #eab308);
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-item.is-selected .vd-tier-radio::after {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--vd-accent, #eab308);
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-title {
+      font-size: 14.5px;
+      font-weight: 500;
+      color: var(--vd-text-color, #111827);
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14.5px;
+      font-weight: 600;
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-price {
+      color: var(--vd-text-color, #111827);
+    }
+
+    #vd-widget-{{ block.id }} .vd-highlight-text {
+      color: var(--vd-accent, #eab308);
+      font-weight: 700;
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-badge {
+      font-size: 13px;
+      letter-spacing: -0.2px;
+    }
+
+    #vd-widget-{{ block.id }} .vd-info-section {
+      text-align: center;
+      margin: 28px 0 16px;
+    }
+
+    #vd-widget-{{ block.id }} .vd-info-title {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--vd-text-color, #111827);
+      margin: 0 0 5px;
+    }
+
+    #vd-widget-{{ block.id }} .vd-info-subtitle {
+      font-size: 13px;
+      color: #6b7280;
+      margin: 0;
+    }
+
+    #vd-widget-{{ block.id }} .vd-action-wrapper {
+      margin-top: 14px;
+    }
+
+    #vd-widget-{{ block.id }} .vd-btn {
+      width: 100%;
+      background: var(--vd-btn-bg, #111827);
+      color: var(--vd-btn-text, #ffffff);
+      border: none;
+      border-radius: 8px;
+      padding: 13px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    #vd-widget-{{ block.id }} .vd-btn:hover {
+      opacity: 0.93;
+      transform: translateY(-1px);
+    }
+
+    #vd-widget-{{ block.id }} .vd-btn:active {
+      transform: translateY(0);
+    }
+
+    #vd-widget-{{ block.id }} .vd-feedback {
+      margin-top: 10px;
+      font-size: 13px;
+      text-align: center;
+      padding: 8px 12px;
+      border-radius: 6px;
+    }
+
+    #vd-widget-{{ block.id }} .vd-feedback.success {
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+
+    #vd-widget-{{ block.id }} .vd-feedback.error {
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+  </style>
+
+  <script>
+    (function() {
+      const container = document.getElementById('vd-widget-{{ block.id }}');
+      if (!container) return;
+
+      const tiers = container.querySelectorAll('.vd-tier-item');
+      const actionBtn = document.getElementById('vd-btn-{{ block.id }}');
+      const feedbackEl = document.getElementById('vd-feedback-{{ block.id }}');
+      let currentVariantId = "{{ current_variant.id }}";
+      let basePrice = {{ base_price }};
+
+      // Helper: Format Money
+      function formatMoney(cents) {
+        return (cents / 100).toLocaleString(undefined, {
+          style: 'currency',
+          currency: '{{ cart.currency.iso_code }}'
+        });
+      }
+
+      // Synchronize with standard theme quantity input if present
+      function syncThemeQuantity(qty) {
+        const productForm = container.closest('form[action*="/cart/add"]') || document.querySelector('form[action*="/cart/add"]');
+        if (productForm) {
+          const qtyInput = productForm.querySelector('input[name="quantity"]');
+          if (qtyInput) {
+            qtyInput.value = qty;
+            qtyInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      }
+
+      // Select Tier Handler
+      function selectTier(item) {
+        tiers.forEach(t => {
+          t.classList.remove('is-selected');
+          t.setAttribute('aria-checked', 'false');
+        });
+        item.classList.add('is-selected');
+        item.setAttribute('aria-checked', 'true');
+
+        const qty = parseInt(item.getAttribute('data-qty') || '1', 10);
+        syncThemeQuantity(qty);
+      }
+
+      tiers.forEach(item => {
+        item.addEventListener('click', function() {
+          selectTier(this);
+        });
+
+        item.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectTier(this);
+          }
+        });
+      });
+
+      // Initial sync with default selected tier
+      const initiallySelected = container.querySelector('.vd-tier-item.is-selected') || tiers[0];
+      if (initiallySelected) {
+        const initQty = parseInt(initiallySelected.getAttribute('data-qty') || '1', 10);
+        syncThemeQuantity(initQty);
+      }
+
+      // Listen for variant changes from theme (Dawn and modern themes dispatch variant change events or form change)
+      document.addEventListener('variant:change', function(evt) {
+        if (evt.detail && evt.detail.variant) {
+          currentVariantId = evt.detail.variant.id;
+          basePrice = evt.detail.variant.price;
+          updateTierPrices();
+        }
+      });
+
+      // Also listen on standard variant radio/select changes
+      const form = document.querySelector('form[action*="/cart/add"]');
+      if (form) {
+        form.addEventListener('change', function(e) {
+          if (e.target.name === 'id') {
+            currentVariantId = e.target.value;
+          }
+        });
+      }
+
+      function updateTierPrices() {
+        tiers.forEach(item => {
+          const tierNum = item.getAttribute('data-tier');
+          const qty = parseInt(item.getAttribute('data-qty') || '1', 10);
+          const discount = parseInt(item.getAttribute('data-discount') || '0', 10);
+          const priceEl = item.querySelector('[data-tier-price="' + tierNum + '"]');
+          if (priceEl) {
+            const rawTotal = basePrice * qty;
+            const discountedTotal = rawTotal - (rawTotal * (discount / 100));
+            priceEl.textContent = formatMoney(discountedTotal);
+          }
+        });
+      }
+
+      // Handle Action Button Click (Add to Cart)
+      if (actionBtn) {
+        actionBtn.addEventListener('click', async function() {
+          const selected = container.querySelector('.vd-tier-item.is-selected');
+          if (!selected) return;
+
+          const qty = parseInt(selected.getAttribute('data-qty') || '1', 10);
+          const discount = selected.getAttribute('data-discount') || '0';
+          const tierTitle = selected.querySelector('.vd-tier-title') ? selected.querySelector('.vd-tier-title').textContent.trim() : 'Tier';
+
+          const btnText = actionBtn.querySelector('.vd-btn-text');
+          const btnLoader = actionBtn.querySelector('.vd-btn-loader');
+
+          actionBtn.disabled = true;
+          if (btnText) btnText.style.display = 'none';
+          if (btnLoader) btnLoader.style.display = 'inline-block';
+          if (feedbackEl) feedbackEl.style.display = 'none';
+
+          try {
+            const response = await fetch('/cart/add.js', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                items: [{
+                  id: parseInt(currentVariantId, 10),
+                  quantity: qty,
+                  properties: {
+                    '_bundle_type': 'volume_discount',
+                    '_volume_tier': tierTitle,
+                    '_volume_discount': discount + '%'
+                  }
+                }]
+              })
+            });
+
+            if (response.ok) {
+              if (feedbackEl) {
+                feedbackEl.className = 'vd-feedback success';
+                feedbackEl.textContent = '🎉 Successfully added ' + qty + ' item(s) to your cart!';
+                feedbackEl.style.display = 'block';
+              }
+              // Redirect to cart or trigger cart refresh after brief delay
+              setTimeout(function() {
+                window.location.href = '/cart';
+              }, 600);
+            } else {
+              const err = await response.json();
+              throw new Error(err.description || 'Could not add to cart.');
+            }
+          } catch (err) {
+            actionBtn.disabled = false;
+            if (btnText) btnText.style.display = 'inline-block';
+            if (btnLoader) btnLoader.style.display = 'none';
+            if (feedbackEl) {
+              feedbackEl.className = 'vd-feedback error';
+              feedbackEl.textContent = err.message || 'Error adding to cart.';
+              feedbackEl.style.display = 'block';
+            }
+          }
+        });
+      }
+
+    })();
+  </script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Volume Discounts",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Header Settings"
+    },
+    {
+      "type": "text",
+      "id": "header_title",
+      "label": "Heading",
+      "default": ""
+    },
+    {
+      "type": "text",
+      "id": "header_subtitle",
+      "label": "Subheading",
+      "default": ""
+    },
+    {
+      "type": "header",
+      "content": "Tier 1 (Single)"
+    },
+    {
+      "type": "number",
+      "id": "tier_1_qty",
+      "label": "Quantity",
+      "default": 1
+    },
+    {
+      "type": "text",
+      "id": "tier_1_title",
+      "label": "Title",
+      "default": "Buy 1 (Single)"
+    },
+    {
+      "type": "range",
+      "id": "tier_1_discount",
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%",
+      "label": "Discount",
+      "default": 0
+    },
+    {
+      "type": "text",
+      "id": "tier_1_badge",
+      "label": "Right Label / Badge (Leave empty to show price)",
+      "default": ""
+    },
+    {
+      "type": "header",
+      "content": "Tier 2 (Duo)"
+    },
+    {
+      "type": "number",
+      "id": "tier_2_qty",
+      "label": "Quantity",
+      "default": 2
+    },
+    {
+      "type": "text",
+      "id": "tier_2_title",
+      "label": "Title",
+      "default": "Buy 2 (Duo Pack)"
+    },
+    {
+      "type": "range",
+      "id": "tier_2_discount",
+      "min": 0,
+      "max": 70,
+      "step": 1,
+      "unit": "%",
+      "label": "Discount",
+      "default": 10
+    },
+    {
+      "type": "text",
+      "id": "tier_2_badge",
+      "label": "Right Label / Badge",
+      "default": "Save 10%"
+    },
+    {
+      "type": "header",
+      "content": "Tier 3 (Trio)"
+    },
+    {
+      "type": "number",
+      "id": "tier_3_qty",
+      "label": "Quantity",
+      "default": 3
+    },
+    {
+      "type": "text",
+      "id": "tier_3_title",
+      "label": "Title",
+      "default": "Buy 3 (Trio Pack)"
+    },
+    {
+      "type": "range",
+      "id": "tier_3_discount",
+      "min": 0,
+      "max": 80,
+      "step": 1,
+      "unit": "%",
+      "label": "Discount",
+      "default": 20
+    },
+    {
+      "type": "text",
+      "id": "tier_3_badge",
+      "label": "Right Label / Badge",
+      "default": "Save 20%"
+    },
+    {
+      "type": "select",
+      "id": "default_tier",
+      "label": "Default Selected Tier",
+      "options": [
+        { "value": "1", "label": "Tier 1" },
+        { "value": "2", "label": "Tier 2" },
+        { "value": "3", "label": "Tier 3" }
+      ],
+      "default": "2"
+    },
+    {
+      "type": "header",
+      "content": "Footer / Description"
+    },
+    {
+      "type": "text",
+      "id": "footer_heading",
+      "label": "Footer Title",
+      "default": "Quantity breaks for same product"
+    },
+    {
+      "type": "text",
+      "id": "footer_subheading",
+      "label": "Footer Subtitle",
+      "default": "Single, Duo, Trio volume tiers"
+    },
+    {
+      "type": "header",
+      "content": "Action Button"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_button",
+      "label": "Show 'Choose' / 'Add to Cart' Button",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Button Label",
+      "default": "Choose"
+    },
+    {
+      "type": "header",
+      "content": "Colors & Styling"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Active Tier / Accent Color",
+      "default": "#eab308"
+    },
+    {
+      "type": "color",
+      "id": "card_bg",
+      "label": "Card Background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "border_color",
+      "label": "Border Color",
+      "default": "#e5e7eb"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text Color",
+      "default": "#111827"
+    },
+    {
+      "type": "color",
+      "id": "btn_bg",
+      "label": "Button Background",
+      "default": "#111827"
+    },
+    {
+      "type": "color",
+      "id": "btn_text_color",
+      "label": "Button Text Color",
+      "default": "#ffffff"
+    }
+  ]
+}
+{% endschema %}

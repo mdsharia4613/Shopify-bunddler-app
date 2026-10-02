@@ -90,7 +90,7 @@ export default function TemplatesPage() {
                     <div style={{ marginTop: "20px", textAlign: "center" }}>
                         <h4 style={{ margin: "0 0 6px 0" }}>Quantity breaks for same product</h4>
                         <p style={{ margin: "0 0 14px 0", fontSize: "12px", color: "#666" }}>Single, Duo, Trio volume tiers</p>
-                        <Link to={`/app/bundle-builder?type=quantity-break&color=${encodeURIComponent(selectedColor)}`} style={{ textDecoration: "none" }}>
+                        <Link to={`/app/volume-discount-builder?color=${encodeURIComponent(selectedColor)}`} style={{ textDecoration: "none" }}>
                             <button style={{ width: "100%", padding: "10px", backgroundColor: "#111827", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer" }}>
                                 Choose
                             </button>
