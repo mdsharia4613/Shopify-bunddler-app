@@ -158,8 +158,10 @@ export default function VolumeDiscountBuilder() {
 
     // Interactive preview selected tier state
     const [previewSelectedTier, setPreviewSelectedTier] = useState(defaultTier);
+    const [imageModalTierIdx, setImageModalTierIdx] = useState(null);
+    const [openGiftDropdownIdx, setOpenGiftDropdownIdx] = useState(null);
 
-    // Initial Tiers matching the exact reference image
+    // Initial Tiers matching the exact reference image with image & gift options
     const [tiers, setTiers] = useState(
         parsedInitial?.tiers || [
             {
@@ -170,6 +172,8 @@ export default function VolumeDiscountBuilder() {
                 discount: 0,
                 saveTag: "",
                 popularBadge: "",
+                image: null,
+                gift: { enabled: false, type: "gift", text: "+ FREE Gift", productId: "", productTitle: "", imageUrl: "", imageSize: 30, showOriginalPrice: true },
             },
             {
                 id: 2,
@@ -179,6 +183,8 @@ export default function VolumeDiscountBuilder() {
                 discount: 15,
                 saveTag: "SAVE $30.00",
                 popularBadge: "Most Popular",
+                image: null,
+                gift: { enabled: false, type: "gift", text: "+ FREE Gift", productId: "", productTitle: "", imageUrl: "", imageSize: 30, showOriginalPrice: true },
             },
             {
                 id: 3,
@@ -188,6 +194,8 @@ export default function VolumeDiscountBuilder() {
                 discount: 20,
                 saveTag: "SAVE $60.00",
                 popularBadge: "",
+                image: null,
+                gift: { enabled: false, type: "gift", text: "+ FREE Gift", productId: "", productTitle: "", imageUrl: "", imageSize: 30, showOriginalPrice: true },
             },
         ]
     );
@@ -197,6 +205,116 @@ export default function VolumeDiscountBuilder() {
         const next = [...tiers];
         next[index] = { ...next[index], [field]: value };
         setTiers(next);
+    };
+
+    // Update tier image settings
+    const handleUpdateImage = (index, imageObj) => {
+        const next = [...tiers];
+        const curr = next[index].image || { url: "", size: 48, radius: 6 };
+        next[index] = { ...next[index], image: { ...curr, ...imageObj } };
+        setTiers(next);
+    };
+
+    // Remove tier image
+    const handleRemoveImage = (index) => {
+        const next = [...tiers];
+        next[index] = { ...next[index], image: null };
+        setTiers(next);
+    };
+
+    // Toggle tier gift
+    const handleToggleGift = (index, forceState) => {
+        const next = [...tiers];
+        const currentGift = next[index].gift || {
+            enabled: false,
+            type: "gift",
+            text: "+ FREE Gift",
+            productId: "",
+            productTitle: "",
+            imageUrl: "",
+            imageSize: 30,
+            showOriginalPrice: true,
+        };
+        const nextEnabled = typeof forceState === "boolean" ? forceState : !currentGift.enabled;
+        next[index] = {
+            ...next[index],
+            gift: {
+                ...currentGift,
+                enabled: nextEnabled,
+            },
+        };
+        setTiers(next);
+    };
+
+    // Update tier gift settings
+    const handleUpdateGift = (index, giftUpdates) => {
+        const next = [...tiers];
+        const currentGift = next[index].gift || {
+            enabled: true,
+            type: "gift",
+            text: "+ FREE Gift",
+            productId: "",
+            productTitle: "",
+            imageUrl: "",
+            imageSize: 30,
+            showOriginalPrice: true,
+        };
+        next[index] = {
+            ...next[index],
+            gift: {
+                ...currentGift,
+                ...giftUpdates,
+            },
+        };
+        setTiers(next);
+    };
+
+    // Open Shopify Resource Picker to select an image from store products for the tier
+    const handlePickImageForTier = async (tierIdx) => {
+        if (typeof window !== "undefined" && window.shopify?.resourcePicker) {
+            try {
+                const selected = await window.shopify.resourcePicker({
+                    type: "product",
+                    multiple: false,
+                });
+                if (selected && Array.isArray(selected) && selected.length > 0) {
+                    const p = selected[0];
+                    const imgUrl = p.images?.[0]?.originalSrc || p.featuredImage?.url || "";
+                    if (imgUrl) {
+                        handleUpdateImage(tierIdx, { url: imgUrl });
+                    }
+                }
+            } catch (err) {
+                // Closed or cancelled
+            }
+        }
+    };
+
+    // Open Shopify Resource Picker to select a gift product for the tier
+    const handlePickGiftProduct = async (tierIdx) => {
+        if (typeof window !== "undefined" && window.shopify?.resourcePicker) {
+            try {
+                const selected = await window.shopify.resourcePicker({
+                    type: "product",
+                    multiple: false,
+                });
+                if (selected && Array.isArray(selected) && selected.length > 0) {
+                    const p = selected[0];
+                    const imgUrl = p.images?.[0]?.originalSrc || p.featuredImage?.url || "";
+                    const vId = p.variants?.[0]?.id || "";
+                    const price = p.variants?.[0]?.price || "0.00";
+                    handleUpdateGift(tierIdx, {
+                        productId: p.id,
+                        productTitle: p.title,
+                        imageUrl: imgUrl,
+                        variantId: vId,
+                        price: parseFloat(price),
+                    });
+                }
+            } catch (err) {
+                // Closed or cancelled
+            }
+        }
     };
 
     // Add new tier
@@ -213,6 +331,8 @@ export default function VolumeDiscountBuilder() {
                 discount: nextDiscount,
                 saveTag: `SAVE ${nextDiscount}%`,
                 popularBadge: "",
+                image: null,
+                gift: { enabled: false, type: "gift", text: "+ FREE Gift", productId: "", productTitle: "", imageUrl: "", imageSize: 30, showOriginalPrice: true },
             },
         ]);
     };
@@ -758,8 +878,335 @@ export default function VolumeDiscountBuilder() {
                                                 placeholder="e.g. Most Popular"
                                                 style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
                                             />
-                                        </div>
                                     </div>
+
+                                    {/* Action Buttons: Add Image & Add Gift (Image 1) */}
+                                    <div style={{ display: "flex", gap: "8px", marginTop: "14px", paddingTop: "12px", borderTop: "1px dashed #e5e7eb", flexWrap: "wrap", alignItems: "center" }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setImageModalTierIdx(idx)}
+                                            style={{
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: "6px",
+                                                padding: "7px 14px",
+                                                backgroundColor: "#ffffff",
+                                                border: "1px solid #d1d5db",
+                                                borderRadius: "6px",
+                                                fontSize: "13px",
+                                                fontWeight: "600",
+                                                color: "#374151",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            <span>📷</span>
+                                            <span>{t.image?.url ? "Edit image" : "Add image"}</span>
+                                        </button>
+
+                                        {t.image?.url && (
+                                            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "#f3f4f6", padding: "4px 8px", borderRadius: "6px" }}>
+                                                <img
+                                                    src={t.image.url}
+                                                    alt="Tier thumb"
+                                                    style={{ width: "24px", height: "24px", borderRadius: `${t.image.radius ?? 4}px`, objectFit: "cover" }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveImage(idx)}
+                                                    style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: "12px", fontWeight: "700" }}
+                                                    title="Remove image"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            type="button"
+                                            onClick={() => handleToggleGift(idx)}
+                                            style={{
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: "6px",
+                                                padding: "7px 14px",
+                                                backgroundColor: t.gift?.enabled ? "#ecfdf5" : "#ffffff",
+                                                border: t.gift?.enabled ? "1px solid #6ee7b7" : "1px solid #d1d5db",
+                                                borderRadius: "6px",
+                                                fontSize: "13px",
+                                                fontWeight: "600",
+                                                color: t.gift?.enabled ? "#065f46" : "#374151",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            <span>🎁</span>
+                                            <span>{t.gift?.enabled ? "Gift Active" : "Add gift"}</span>
+                                            <span style={{ fontSize: "11px" }}>{t.gift?.enabled ? "✓" : "⌵"}</span>
+                                        </button>
+                                    </div>
+
+                                    {/* Gifts Block (Images 3 & 4) */}
+                                    {t.gift?.enabled && (
+                                        <div
+                                            style={{
+                                                marginTop: "14px",
+                                                border: "1px solid #e5e7eb",
+                                                borderRadius: "10px",
+                                                padding: "16px",
+                                                backgroundColor: "#f9fafb",
+                                            }}
+                                        >
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                    <span style={{ fontSize: "15px" }}>🎁</span>
+                                                    <span style={{ fontSize: "13px", fontWeight: "700", color: "#111827" }}>Gifts</span>
+                                                </div>
+                                            </div>
+
+                                            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#6b7280", marginBottom: "12px", cursor: "pointer" }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={t.gift?.summaryWhenUnselected || false}
+                                                    onChange={(e) => handleUpdateGift(idx, { summaryWhenUnselected: e.target.checked })}
+                                                />
+                                                Show multiple free gifts summary when bar is not selected
+                                            </label>
+
+                                            {/* Sub-card matching Image 3 and Image 4 */}
+                                            <div
+                                                style={{
+                                                    backgroundColor: "#ffffff",
+                                                    border: "1px solid #e5e7eb",
+                                                    borderRadius: "8px",
+                                                    padding: "16px",
+                                                }}
+                                            >
+                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                                                    <span style={{ fontSize: "13px", fontWeight: "700", color: "#111827" }}>
+                                                        {t.gift?.type === "shipping" ? "🚚 Free shipping" : "🎁 Free gift"}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleToggleGift(idx, false)}
+                                                        style={{ border: "none", background: "none", color: "#6b7280", cursor: "pointer", fontSize: "12px", fontWeight: "600", textDecoration: "underline" }}
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+
+                                                {/* Segmented control / Tabs */}
+                                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleUpdateGift(idx, { type: "gift", text: t.gift?.text === "+ FREE Shipping" ? "+ FREE Gift" : (t.gift?.text || "+ FREE Gift") })}
+                                                        style={{
+                                                            padding: "10px",
+                                                            borderRadius: "6px",
+                                                            border: t.gift?.type !== "shipping" ? "2px solid #059669" : "1px solid #d1d5db",
+                                                            backgroundColor: t.gift?.type !== "shipping" ? "#f0fdf4" : "#ffffff",
+                                                            color: t.gift?.type !== "shipping" ? "#065f46" : "#4b5563",
+                                                            fontWeight: "700",
+                                                            fontSize: "13px",
+                                                            cursor: "pointer",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            gap: "6px",
+                                                        }}
+                                                    >
+                                                        <span>🎁</span>
+                                                        <span>Free gift</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleUpdateGift(idx, { type: "shipping", text: t.gift?.text === "+ FREE Gift" ? "+ FREE Shipping" : (t.gift?.text || "+ FREE Shipping") })}
+                                                        style={{
+                                                            padding: "10px",
+                                                            borderRadius: "6px",
+                                                            border: t.gift?.type === "shipping" ? "2px solid #059669" : "1px solid #d1d5db",
+                                                            backgroundColor: t.gift?.type === "shipping" ? "#f0fdf4" : "#ffffff",
+                                                            color: t.gift?.type === "shipping" ? "#065f46" : "#4b5563",
+                                                            fontWeight: "700",
+                                                            fontSize: "13px",
+                                                            cursor: "pointer",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            gap: "6px",
+                                                        }}
+                                                    >
+                                                        <span>🚚</span>
+                                                        <span>Free shipping</span>
+                                                    </button>
+                                                </div>
+
+                                                {/* Alert banner */}
+                                                <div
+                                                    style={{
+                                                        backgroundColor: "#eff6ff",
+                                                        border: "1px solid #bfdbfe",
+                                                        borderRadius: "6px",
+                                                        padding: "10px 14px",
+                                                        marginBottom: "14px",
+                                                        fontSize: "12px",
+                                                        color: "#1e40af",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: "8px",
+                                                    }}
+                                                >
+                                                    <span>ℹ️</span>
+                                                    <span>
+                                                        We automatically apply a 100% discount to {t.gift?.type === "shipping" ? "shipping" : "gifts"}
+                                                    </span>
+                                                </div>
+
+                                                {/* Tab 1: Free gift specific content */}
+                                                {t.gift?.type !== "shipping" && (
+                                                    <div style={{ marginBottom: "14px" }}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handlePickGiftProduct(idx)}
+                                                            style={{
+                                                                width: "100%",
+                                                                padding: "10px",
+                                                                backgroundColor: "#111827",
+                                                                color: "#ffffff",
+                                                                border: "none",
+                                                                borderRadius: "6px",
+                                                                fontSize: "13px",
+                                                                fontWeight: "700",
+                                                                cursor: "pointer",
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                justifyContent: "center",
+                                                                gap: "8px",
+                                                            }}
+                                                        >
+                                                            <span>🎁</span>
+                                                            <span>{t.gift?.productTitle ? `Gift: ${t.gift.productTitle}` : "Select a product"}</span>
+                                                        </button>
+
+                                                        {t.gift?.productTitle && (
+                                                            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px", padding: "8px", backgroundColor: "#f9fafb", borderRadius: "6px", border: "1px solid #e5e7eb" }}>
+                                                                {t.gift.imageUrl && (
+                                                                    <img src={t.gift.imageUrl} alt={t.gift.productTitle} style={{ width: "32px", height: "32px", borderRadius: "4px", objectFit: "cover" }} />
+                                                                )}
+                                                                <div style={{ flex: 1 }}>
+                                                                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#111827" }}>{t.gift.productTitle}</div>
+                                                                    <div style={{ fontSize: "11px", color: "#059669", fontWeight: "700" }}>$0.00 (100% Free Gift)</div>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handlePickGiftProduct(idx)}
+                                                                    style={{ border: "none", background: "none", color: "#2563eb", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}
+                                                                >
+                                                                    Change
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Text input */}
+                                                <div style={{ marginBottom: "14px" }}>
+                                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                                                        <label style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280" }}>Text</label>
+                                                        <span style={{ fontSize: "11px", color: "#9ca3af" }}>{"{}"}</span>
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        value={t.gift?.text || (t.gift?.type === "shipping" ? "+ FREE Shipping" : "+ FREE Gift")}
+                                                        onChange={(e) => handleUpdateGift(idx, { text: e.target.value })}
+                                                        style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
+                                                    />
+                                                </div>
+
+                                                {/* Image & Image size slider */}
+                                                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px", flexWrap: "wrap" }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                        {t.gift?.imageUrl ? (
+                                                            <img src={t.gift.imageUrl} alt="Gift thumb" style={{ width: "32px", height: "32px", borderRadius: "4px", objectFit: "cover", border: "1px solid #d1d5db" }} />
+                                                        ) : (
+                                                            <div style={{ width: "32px", height: "32px", backgroundColor: "#f3f4f6", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", border: "1px solid #d1d5db" }}>
+                                                                {t.gift?.type === "shipping" ? "🚚" : "🎁"}
+                                                            </div>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handlePickGiftProduct(idx)}
+                                                            style={{
+                                                                padding: "6px 12px",
+                                                                backgroundColor: "#ffffff",
+                                                                border: "1px solid #d1d5db",
+                                                                borderRadius: "6px",
+                                                                fontSize: "12px",
+                                                                fontWeight: "600",
+                                                                cursor: "pointer",
+                                                            }}
+                                                        >
+                                                            📷 Edit image
+                                                        </button>
+                                                    </div>
+
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: "160px" }}>
+                                                        <span style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", whiteSpace: "nowrap" }}>Image size</span>
+                                                        <input
+                                                            type="range"
+                                                            min="16"
+                                                            max="60"
+                                                            value={t.gift?.imageSize || 30}
+                                                            onChange={(e) => handleUpdateGift(idx, { imageSize: parseInt(e.target.value, 10) || 30 })}
+                                                            style={{ flex: 1 }}
+                                                        />
+                                                        <span style={{ fontSize: "12px", fontWeight: "600", minWidth: "40px", textAlign: "right" }}>
+                                                            {t.gift?.imageSize || 30} px
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Checkboxes matching Image 3 and 4 */}
+                                                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                                    {t.gift?.type !== "shipping" ? (
+                                                        <>
+                                                            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#4b5563", cursor: "pointer" }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={t.gift?.showOriginalPrice !== false}
+                                                                    onChange={(e) => handleUpdateGift(idx, { showOriginalPrice: e.target.checked })}
+                                                                />
+                                                                Show original price
+                                                            </label>
+                                                            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#4b5563", cursor: "pointer" }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={t.gift?.includeCompareAt || false}
+                                                                    onChange={(e) => handleUpdateGift(idx, { includeCompareAt: e.target.checked })}
+                                                                />
+                                                                Include in compare-at price
+                                                            </label>
+                                                        </>
+                                                    ) : (
+                                                        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#4b5563", cursor: "pointer" }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={t.gift?.excludeOverAmount || false}
+                                                                onChange={(e) => handleUpdateGift(idx, { excludeOverAmount: e.target.checked })}
+                                                            />
+                                                            Exclude shipping rates over a certain amount
+                                                        </label>
+                                                    )}
+                                                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#4b5563", cursor: "pointer" }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={t.gift?.onlySubscriptions || false}
+                                                            onChange={(e) => handleUpdateGift(idx, { onlySubscriptions: e.target.checked })}
+                                                        />
+                                                        Apply only for subscriptions
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                 </div>
                             ))}
@@ -802,6 +1249,7 @@ export default function VolumeDiscountBuilder() {
                                 const discountPct = Number(t.discount) || 0;
                                 const savedAmount = rawTotal * (discountPct / 100);
                                 const finalTotal = rawTotal - savedAmount;
+                                const hasGift = t.gift?.enabled;
 
                                 return (
                                     <div
@@ -809,21 +1257,8 @@ export default function VolumeDiscountBuilder() {
                                         onClick={() => setPreviewSelectedTier(idx + 1)}
                                         style={{
                                             position: "relative",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                            padding: "16px 20px",
-                                            borderRadius: "10px",
                                             cursor: "pointer",
-                                            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                                             userSelect: "none",
-                                            backgroundColor: isSelected ? "#fffdf5" : "#fffefc",
-                                            border: isSelected
-                                                ? `2px solid ${accentColor}`
-                                                : "1.5px solid #fde68a",
-                                            boxShadow: isSelected
-                                                ? `0 2px 8px -2px ${accentColor}33`
-                                                : "none",
                                         }}
                                     >
                                         {/* Floating Most Popular Corner Badge */}
@@ -852,99 +1287,172 @@ export default function VolumeDiscountBuilder() {
                                             </div>
                                         )}
 
-                                        {/* Left Side: Radio + Title + Tag + Subtitle */}
-                                        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                                            {/* Custom Radio Button */}
-                                            <div
-                                                style={{
-                                                    width: "22px",
-                                                    height: "22px",
-                                                    borderRadius: "50%",
-                                                    border: isSelected ? `2.5px solid ${accentColor}` : "2px solid #fcd34d",
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    flexShrink: 0,
-                                                    backgroundColor: "#ffffff",
-                                                }}
-                                            >
-                                                {isSelected && (
-                                                    <div
+                                        {/* Main Tier Box */}
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                padding: "16px 20px",
+                                                borderRadius: hasGift ? "10px 10px 0 0" : "10px",
+                                                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                                                backgroundColor: isSelected ? "#fffdf5" : "#fffefc",
+                                                border: isSelected
+                                                    ? `2px solid ${accentColor}`
+                                                    : "1.5px solid #fde68a",
+                                                borderBottom: hasGift ? "none" : undefined,
+                                                boxShadow: isSelected
+                                                    ? `0 2px 8px -2px ${accentColor}33`
+                                                    : "none",
+                                            }}
+                                        >
+                                            {/* Left Side: Radio + Image + Title + Tag + Subtitle */}
+                                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                                {/* Custom Radio Button */}
+                                                <div
+                                                    style={{
+                                                        width: "22px",
+                                                        height: "22px",
+                                                        borderRadius: "50%",
+                                                        border: isSelected ? `2.5px solid ${accentColor}` : "2px solid #fcd34d",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        flexShrink: 0,
+                                                        backgroundColor: "#ffffff",
+                                                    }}
+                                                >
+                                                    {isSelected && (
+                                                        <div
+                                                            style={{
+                                                                width: "10px",
+                                                                height: "10px",
+                                                                borderRadius: "50%",
+                                                                backgroundColor: accentColor,
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
+
+                                                {/* Tier Image (Image 2) */}
+                                                {t.image?.url && (
+                                                    <img
+                                                        src={t.image.url}
+                                                        alt={t.title}
                                                         style={{
-                                                            width: "10px",
-                                                            height: "10px",
-                                                            borderRadius: "50%",
-                                                            backgroundColor: accentColor,
+                                                            width: `${t.image.size || 48}px`,
+                                                            height: `${t.image.size || 48}px`,
+                                                            borderRadius: `${t.image.radius ?? 6}px`,
+                                                            objectFit: "cover",
+                                                            flexShrink: 0,
+                                                            border: "1px solid #e5e7eb",
                                                         }}
                                                     />
                                                 )}
+
+                                                {/* Title & Subtitle */}
+                                                <div>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                        <span style={{ fontSize: "18px", fontWeight: "700", color: "#111827" }}>
+                                                            {t.title}
+                                                        </span>
+
+                                                        {/* Save Pill Tag */}
+                                                        {t.saveTag ? (
+                                                            <span
+                                                                style={{
+                                                                    backgroundColor: "#fef3c7",
+                                                                    color: "#92400e",
+                                                                    fontSize: "11.5px",
+                                                                    fontWeight: "700",
+                                                                    padding: "3px 8px",
+                                                                    borderRadius: "6px",
+                                                                    textTransform: "uppercase",
+                                                                    letterSpacing: "0.3px",
+                                                                }}
+                                                            >
+                                                                {t.saveTag}
+                                                            </span>
+                                                        ) : discountPct > 0 ? (
+                                                            <span
+                                                                style={{
+                                                                    backgroundColor: "#fef3c7",
+                                                                    color: "#92400e",
+                                                                    fontSize: "11.5px",
+                                                                    fontWeight: "700",
+                                                                    padding: "3px 8px",
+                                                                    borderRadius: "6px",
+                                                                    textTransform: "uppercase",
+                                                                }}
+                                                            >
+                                                                SAVE ${savedAmount.toFixed(2)}
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+
+                                                    {/* Subtitle */}
+                                                    <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "2px" }}>
+                                                        {t.subtitle || (discountPct > 0 ? `You save ${discountPct}%` : "Standard price")}
+                                                    </div>
+                                                </div>
                                             </div>
 
-                                            {/* Title & Subtitle */}
-                                            <div>
-                                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                                    <span style={{ fontSize: "18px", fontWeight: "700", color: "#111827" }}>
-                                                        {t.title}
-                                                    </span>
-
-                                                    {/* Save Pill Tag */}
-                                                    {t.saveTag ? (
-                                                        <span
-                                                            style={{
-                                                                backgroundColor: "#fef3c7",
-                                                                color: "#92400e",
-                                                                fontSize: "11.5px",
-                                                                fontWeight: "700",
-                                                                padding: "3px 8px",
-                                                                borderRadius: "6px",
-                                                                textTransform: "uppercase",
-                                                                letterSpacing: "0.3px",
-                                                            }}
-                                                        >
-                                                            {t.saveTag}
-                                                        </span>
-                                                    ) : discountPct > 0 ? (
-                                                        <span
-                                                            style={{
-                                                                backgroundColor: "#fef3c7",
-                                                                color: "#92400e",
-                                                                fontSize: "11.5px",
-                                                                fontWeight: "700",
-                                                                padding: "3px 8px",
-                                                                borderRadius: "6px",
-                                                                textTransform: "uppercase",
-                                                            }}
-                                                        >
-                                                            SAVE ${savedAmount.toFixed(2)}
-                                                        </span>
-                                                    ) : null}
+                                            {/* Right Side: Price & Strikethrough */}
+                                            <div style={{ textAlign: "right" }}>
+                                                <div style={{ fontSize: "20px", fontWeight: "800", color: "#111827" }}>
+                                                    ${finalTotal.toFixed(2)}
                                                 </div>
-
-                                                {/* Subtitle */}
-                                                <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "2px" }}>
-                                                    {t.subtitle || (discountPct > 0 ? `You save ${discountPct}%` : "Standard price")}
-                                                </div>
+                                                {discountPct > 0 && (
+                                                    <div
+                                                        style={{
+                                                            fontSize: "13px",
+                                                            color: "#9ca3af",
+                                                            textDecoration: "line-through",
+                                                            marginTop: "1px",
+                                                        }}
+                                                    >
+                                                        ${rawTotal.toFixed(2)}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
-                                        {/* Right Side: Price & Strikethrough */}
-                                        <div style={{ textAlign: "right" }}>
-                                            <div style={{ fontSize: "20px", fontWeight: "800", color: "#111827" }}>
-                                                ${finalTotal.toFixed(2)}
+                                        {/* Bottom Attached Gift Ribbon (Image 3 and 4) */}
+                                        {hasGift && (
+                                            <div
+                                                style={{
+                                                    backgroundColor: accentColor,
+                                                    color: "#ffffff",
+                                                    padding: "7px 16px",
+                                                    fontWeight: "700",
+                                                    fontSize: "13px",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "8px",
+                                                    borderBottomLeftRadius: "10px",
+                                                    borderBottomRightRadius: "10px",
+                                                    boxShadow: isSelected ? `0 4px 10px -2px ${accentColor}44` : "none",
+                                                }}
+                                            >
+                                                {t.gift.type === "shipping" ? (
+                                                    <span>🚚</span>
+                                                ) : t.gift.imageUrl ? (
+                                                    <img
+                                                        src={t.gift.imageUrl}
+                                                        alt="Gift"
+                                                        style={{
+                                                            width: `${t.gift.imageSize || 24}px`,
+                                                            height: `${t.gift.imageSize || 24}px`,
+                                                            borderRadius: "4px",
+                                                            objectFit: "cover",
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <span>🎁</span>
+                                                )}
+                                                <span>{t.gift.text || (t.gift.type === "shipping" ? "+ FREE Shipping" : "+ FREE Gift")}</span>
                                             </div>
-                                            {discountPct > 0 && (
-                                                <div
-                                                    style={{
-                                                        fontSize: "13px",
-                                                        color: "#9ca3af",
-                                                        textDecoration: "line-through",
-                                                        marginTop: "1px",
-                                                    }}
-                                                >
-                                                    ${rawTotal.toFixed(2)}
-                                                </div>
-                                            )}
-                                        </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -953,6 +1461,404 @@ export default function VolumeDiscountBuilder() {
                 </div>
 
             </div>
+
+            {/* Add Image Modal (Image 2) */}
+            {imageModalTierIdx !== null && tiers[imageModalTierIdx] && (
+                <div
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        backgroundColor: "rgba(0, 0, 0, 0.45)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 9999,
+                        padding: "20px",
+                    }}
+                >
+                    <div
+                        style={{
+                            backgroundColor: "#ffffff",
+                            borderRadius: "16px",
+                            width: "820px",
+                            maxWidth: "95%",
+                            maxHeight: "90vh",
+                            overflowY: "auto",
+                            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.15)",
+                            padding: "24px",
+                        }}
+                    >
+                        {/* Modal Header */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", borderBottom: "1px solid #f3f4f6", paddingBottom: "14px" }}>
+                            <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#111827" }}>
+                                Add image ({tiers[imageModalTierIdx].title})
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => setImageModalTierIdx(null)}
+                                style={{ border: "none", background: "none", fontSize: "20px", cursor: "pointer", color: "#6b7280" }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Modal 2-Column Layout */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "24px", alignItems: "start" }}>
+                            {/* Left: Controls */}
+                            <div>
+                                {/* Dropzone */}
+                                <div
+                                    style={{
+                                        border: "1.5px dashed #d1d5db",
+                                        borderRadius: "10px",
+                                        padding: "20px",
+                                        textAlign: "center",
+                                        backgroundColor: "#fafafa",
+                                        marginBottom: "16px",
+                                    }}
+                                >
+                                    {tiers[imageModalTierIdx].image?.url ? (
+                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                                            <img
+                                                src={tiers[imageModalTierIdx].image.url}
+                                                alt="Selected"
+                                                style={{
+                                                    width: `${tiers[imageModalTierIdx].image.size || 64}px`,
+                                                    height: `${tiers[imageModalTierIdx].image.size || 64}px`,
+                                                    borderRadius: `${tiers[imageModalTierIdx].image.radius ?? 6}px`,
+                                                    objectFit: "cover",
+                                                    border: "1px solid #e5e7eb",
+                                                }}
+                                            />
+                                            <div style={{ display: "flex", gap: "8px" }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handlePickImageForTier(imageModalTierIdx)}
+                                                    style={{
+                                                        padding: "6px 14px",
+                                                        backgroundColor: "#ffffff",
+                                                        border: "1px solid #d1d5db",
+                                                        borderRadius: "6px",
+                                                        fontSize: "12px",
+                                                        fontWeight: "600",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Change image
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveImage(imageModalTierIdx)}
+                                                    style={{
+                                                        padding: "6px 14px",
+                                                        backgroundColor: "#fee2e2",
+                                                        color: "#991b1b",
+                                                        border: "none",
+                                                        borderRadius: "6px",
+                                                        fontSize: "12px",
+                                                        fontWeight: "600",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => handlePickImageForTier(imageModalTierIdx)}
+                                                style={{
+                                                    padding: "8px 20px",
+                                                    backgroundColor: "#ffffff",
+                                                    border: "1px solid #d1d5db",
+                                                    borderRadius: "8px",
+                                                    fontSize: "13px",
+                                                    fontWeight: "700",
+                                                    cursor: "pointer",
+                                                    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                                                }}
+                                            >
+                                                Add image
+                                            </button>
+                                            <span style={{ fontSize: "12px", color: "#9ca3af" }}>or</span>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleUpdateImage(imageModalTierIdx, {
+                                                        url: "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png",
+                                                        size: 48,
+                                                        radius: 6,
+                                                    })
+                                                }
+                                                style={{
+                                                    padding: "8px 16px",
+                                                    backgroundColor: "#1f2937",
+                                                    color: "#ffffff",
+                                                    border: "none",
+                                                    borderRadius: "8px",
+                                                    fontSize: "12px",
+                                                    fontWeight: "600",
+                                                    cursor: "pointer",
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    gap: "6px",
+                                                }}
+                                            >
+                                                <span>✨</span>
+                                                <span>Generate image</span>
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    <div style={{ marginTop: "12px" }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Or enter image URL (https://...)"
+                                            value={tiers[imageModalTierIdx].image?.url || ""}
+                                            onChange={(e) => handleUpdateImage(imageModalTierIdx, { url: e.target.value })}
+                                            style={{
+                                                width: "100%",
+                                                padding: "7px 10px",
+                                                borderRadius: "6px",
+                                                border: "1px solid #d1d5db",
+                                                fontSize: "12px",
+                                                backgroundColor: "#ffffff",
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Size slider */}
+                                <div style={{ marginBottom: "14px" }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                                        <label style={{ fontSize: "12px", fontWeight: "600", color: "#374151" }}>Size</label>
+                                    </div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                        <input
+                                            type="range"
+                                            min="24"
+                                            max="100"
+                                            value={tiers[imageModalTierIdx].image?.size || 48}
+                                            onChange={(e) =>
+                                                handleUpdateImage(imageModalTierIdx, {
+                                                    size: parseInt(e.target.value, 10) || 48,
+                                                })
+                                            }
+                                            style={{ flex: 1 }}
+                                        />
+                                        <div style={{ display: "flex", alignItems: "center", gap: "4px", width: "70px" }}>
+                                            <input
+                                                type="number"
+                                                min="24"
+                                                max="100"
+                                                value={tiers[imageModalTierIdx].image?.size || 48}
+                                                onChange={(e) =>
+                                                    handleUpdateImage(imageModalTierIdx, {
+                                                        size: parseInt(e.target.value, 10) || 48,
+                                                    })
+                                                }
+                                                style={{ width: "45px", padding: "4px 6px", borderRadius: "4px", border: "1px solid #d1d5db", fontSize: "12px", textAlign: "right" }}
+                                            />
+                                            <span style={{ fontSize: "12px", color: "#6b7280" }}>px</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Corner radius slider */}
+                                <div style={{ marginBottom: "18px" }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                                        <label style={{ fontSize: "12px", fontWeight: "600", color: "#374151" }}>Corner radius</label>
+                                    </div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="40"
+                                            value={tiers[imageModalTierIdx].image?.radius ?? 6}
+                                            onChange={(e) =>
+                                                handleUpdateImage(imageModalTierIdx, {
+                                                    radius: parseInt(e.target.value, 10) || 0,
+                                                })
+                                            }
+                                            style={{ flex: 1 }}
+                                        />
+                                        <div style={{ display: "flex", alignItems: "center", gap: "4px", width: "70px" }}>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="40"
+                                                value={tiers[imageModalTierIdx].image?.radius ?? 6}
+                                                onChange={(e) =>
+                                                    handleUpdateImage(imageModalTierIdx, {
+                                                        radius: parseInt(e.target.value, 10) || 0,
+                                                    })
+                                                }
+                                                style={{ width: "45px", padding: "4px 6px", borderRadius: "4px", border: "1px solid #d1d5db", fontSize: "12px", textAlign: "right" }}
+                                            />
+                                            <span style={{ fontSize: "12px", color: "#6b7280" }}>px</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Right: Live Preview in Modal (Image 2) */}
+                            <div>
+                                <div style={{ fontSize: "13px", fontWeight: "700", color: "#374151", marginBottom: "10px" }}>
+                                    Preview
+                                </div>
+                                {(() => {
+                                    const mt = tiers[imageModalTierIdx];
+                                    const rawTotal = sampleItemPrice * mt.qty;
+                                    const discountPct = Number(mt.discount) || 0;
+                                    const savedAmount = rawTotal * (discountPct / 100);
+                                    const finalTotal = rawTotal - savedAmount;
+
+                                    return (
+                                        <div
+                                            style={{
+                                                position: "relative",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                padding: "16px 20px",
+                                                borderRadius: "10px",
+                                                backgroundColor: "#fffdf5",
+                                                border: `2px solid ${accentColor}`,
+                                                boxShadow: `0 2px 8px -2px ${accentColor}33`,
+                                            }}
+                                        >
+                                            {mt.popularBadge && (
+                                                <div
+                                                    style={{
+                                                        position: "absolute",
+                                                        top: "-14px",
+                                                        right: "14px",
+                                                        backgroundColor: accentColor,
+                                                        color: "#ffffff",
+                                                        padding: "4px 14px",
+                                                        borderRadius: "20px",
+                                                        fontSize: "12px",
+                                                        fontWeight: "700",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: "4px",
+                                                        boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                                                        zIndex: 2,
+                                                    }}
+                                                >
+                                                    <span>✨</span>
+                                                    <span>{mt.popularBadge}</span>
+                                                </div>
+                                            )}
+
+                                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                                {/* Radio */}
+                                                <div
+                                                    style={{
+                                                        width: "22px",
+                                                        height: "22px",
+                                                        borderRadius: "50%",
+                                                        border: `2.5px solid ${accentColor}`,
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        flexShrink: 0,
+                                                        backgroundColor: "#ffffff",
+                                                    }}
+                                                >
+                                                    <div
+                                                        style={{
+                                                            width: "10px",
+                                                            height: "10px",
+                                                            borderRadius: "50%",
+                                                            backgroundColor: accentColor,
+                                                        }}
+                                                    />
+                                                </div>
+
+                                                {/* Image */}
+                                                {mt.image?.url && (
+                                                    <img
+                                                        src={mt.image.url}
+                                                        alt={mt.title}
+                                                        style={{
+                                                            width: `${mt.image.size || 48}px`,
+                                                            height: `${mt.image.size || 48}px`,
+                                                            borderRadius: `${mt.image.radius ?? 6}px`,
+                                                            objectFit: "cover",
+                                                            flexShrink: 0,
+                                                            border: "1px solid #e5e7eb",
+                                                        }}
+                                                    />
+                                                )}
+
+                                                <div>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                        <span style={{ fontSize: "18px", fontWeight: "700", color: "#111827" }}>
+                                                            {mt.title}
+                                                        </span>
+                                                        {(mt.saveTag || discountPct > 0) && (
+                                                            <span
+                                                                style={{
+                                                                    backgroundColor: "#fef3c7",
+                                                                    color: "#92400e",
+                                                                    fontSize: "11.5px",
+                                                                    fontWeight: "700",
+                                                                    padding: "3px 8px",
+                                                                    borderRadius: "6px",
+                                                                    textTransform: "uppercase",
+                                                                }}
+                                                            >
+                                                                {mt.saveTag || `SAVE $${savedAmount.toFixed(2)}`}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "2px" }}>
+                                                        {mt.subtitle || (discountPct > 0 ? `You save ${discountPct}%` : "Standard price")}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ textAlign: "right" }}>
+                                                <div style={{ fontSize: "20px", fontWeight: "800", color: "#111827" }}>
+                                                    ${finalTotal.toFixed(2)}
+                                                </div>
+                                                {discountPct > 0 && (
+                                                    <div style={{ fontSize: "13px", color: "#9ca3af", textDecoration: "line-through", marginTop: "1px" }}>
+                                                        ${rawTotal.toFixed(2)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "20px", paddingTop: "14px", borderTop: "1px solid #f3f4f6" }}>
+                            <button
+                                type="button"
+                                onClick={() => setImageModalTierIdx(null)}
+                                style={{
+                                    padding: "9px 24px",
+                                    backgroundColor: "#111827",
+                                    color: "#ffffff",
+                                    border: "none",
+                                    borderRadius: "6px",
+                                    fontSize: "13px",
+                                    fontWeight: "700",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </s-page>
     );

@@ -95,60 +95,95 @@
             {% assign disc_cents = raw_cents | times: disc_pct | divided_by: 100 %}
             {% assign final_cents = raw_cents | minus: disc_cents %}
 
-            <div 
-              class="vd-tier-row {% if is_selected %}is-selected{% endif %}"
-              data-tier="{{ tier_idx }}"
-              data-qty="{{ tier.qty }}"
-              data-discount="{{ disc_pct }}"
-              tabindex="0"
-              role="radio"
-              aria-checked="{% if is_selected %}true{% else %}false{% endif %}"
-            >
-              <!-- Floating Corner Badge -->
-              {% if tier.popularBadge != blank %}
-                <div class="vd-popular-badge">
-                  <span>✨</span>
-                  <span>{{ tier.popularBadge }}</span>
-                </div>
-              {% endif %}
-
-              <!-- Left Column: Radio + Info -->
-              <div class="vd-tier-left">
-                <span class="vd-radio-dot"></span>
-                <div class="vd-tier-info">
-                  <div class="vd-title-row">
-                    <span class="vd-tier-title">{{ tier.title }}</span>
-                    {% if tier.saveTag != blank %}
-                      <span class="vd-save-pill">{{ tier.saveTag }}</span>
-                    {% elsif disc_pct > 0 %}
-                      <span class="vd-save-pill" data-save-pill="{{ tier_idx }}">
-                        SAVE {{ disc_cents | money }}
-                      </span>
-                    {% endif %}
-                  </div>
-                  <div class="vd-tier-subtitle">
-                    {% if tier.subtitle != blank %}
-                      {{ tier.subtitle }}
-                    {% elsif disc_pct > 0 %}
-                      You save {{ disc_pct }}%
-                    {% else %}
-                      Standard price
-                    {% endif %}
-                  </div>
-                </div>
-              </div>
-
-              <!-- Right Column: Final Price + Strikethrough -->
-              <div class="vd-tier-right">
-                <div class="vd-final-price" data-final-price="{{ tier_idx }}">
-                  {{ final_cents | money }}
-                </div>
-                {% if disc_pct > 0 %}
-                  <div class="vd-strikethrough-price" data-raw-price="{{ tier_idx }}">
-                    {{ raw_cents | money }}
+            <div class="vd-tier-card {% if is_selected %}is-selected{% endif %}" data-tier-card="{{ tier_idx }}">
+              <div 
+                class="vd-tier-row {% if is_selected %}is-selected{% endif %}"
+                data-tier="{{ tier_idx }}"
+                data-qty="{{ tier.qty }}"
+                data-discount="{{ disc_pct }}"
+                {% if tier.gift != blank and tier.gift.enabled %}
+                  data-gift-type="{{ tier.gift.type }}"
+                  data-gift-variant-id="{{ tier.gift.variantId }}"
+                {% endif %}
+                tabindex="0"
+                role="radio"
+                aria-checked="{% if is_selected %}true{% else %}false{% endif %}"
+              >
+                <!-- Floating Corner Badge -->
+                {% if tier.popularBadge != blank %}
+                  <div class="vd-popular-badge">
+                    <span>✨</span>
+                    <span>{{ tier.popularBadge }}</span>
                   </div>
                 {% endif %}
+
+                <!-- Left Column: Radio + Image + Info -->
+                <div class="vd-tier-left">
+                  <span class="vd-radio-dot"></span>
+                  {% if tier.image != blank and tier.image.url != blank %}
+                    <img 
+                      src="{{ tier.image.url }}" 
+                      alt="{{ tier.title }}" 
+                      class="vd-tier-thumb"
+                      style="width: {{ tier.image.size | default: 48 }}px; height: {{ tier.image.size | default: 48 }}px; border-radius: {{ tier.image.radius | default: 6 }}px; object-fit: cover; flex-shrink: 0;"
+                    />
+                  {% endif %}
+                  <div class="vd-tier-info">
+                    <div class="vd-title-row">
+                      <span class="vd-tier-title">{{ tier.title }}</span>
+                      {% if tier.saveTag != blank %}
+                        <span class="vd-save-pill">{{ tier.saveTag }}</span>
+                      {% elsif disc_pct > 0 %}
+                        <span class="vd-save-pill" data-save-pill="{{ tier_idx }}">
+                          SAVE {{ disc_cents | money }}
+                        </span>
+                      {% endif %}
+                    </div>
+                    <div class="vd-tier-subtitle">
+                      {% if tier.subtitle != blank %}
+                        {{ tier.subtitle }}
+                      {% elsif disc_pct > 0 %}
+                        You save {{ disc_pct }}%
+                      {% else %}
+                        Standard price
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Right Column: Final Price + Strikethrough -->
+                <div class="vd-tier-right">
+                  <div class="vd-final-price" data-final-price="{{ tier_idx }}">
+                    {{ final_cents | money }}
+                  </div>
+                  {% if disc_pct > 0 %}
+                    <div class="vd-strikethrough-price" data-raw-price="{{ tier_idx }}">
+                      {{ raw_cents | money }}
+                    </div>
+                  {% endif %}
+                </div>
               </div>
+
+              <!-- Bottom Attached Gift Ribbon (Images 3 & 4) -->
+              {% if tier.gift != blank and tier.gift.enabled %}
+                <div 
+                  class="vd-tier-gift-bar {% unless is_selected %}vd-gift-hidden{% endunless %}" 
+                  data-gift-bar="{{ tier_idx }}"
+                >
+                  {% if tier.gift.type == 'shipping' %}
+                    <span>🚚</span>
+                  {% elsif tier.gift.imageUrl != blank %}
+                    <img 
+                      src="{{ tier.gift.imageUrl }}" 
+                      alt="Gift" 
+                      style="width: {{ tier.gift.imageSize | default: 24 }}px; height: {{ tier.gift.imageSize | default: 24 }}px; border-radius: 4px; object-fit: cover;" 
+                    />
+                  {% else %}
+                    <span>🎁</span>
+                  {% endif %}
+                  <span>{{ tier.gift.text | default: '+ FREE Gift' }}</span>
+                </div>
+              {% endif %}
             </div>
           {% endfor %}
 
@@ -283,6 +318,12 @@
       outline: none;
     }
 
+    #vd-widget-{{ block.id }} .vd-tier-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
     #vd-widget-{{ block.id }} .vd-tier-row:hover {
       border-color: var(--vd-accent, #f59e0b);
       transform: translateY(-1px);
@@ -292,6 +333,36 @@
       border: 2px solid var(--vd-accent, #f59e0b);
       background: #fffdf5;
       box-shadow: 0 4px 12px -2px rgba(245, 158, 11, 0.15);
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-card:has(.vd-tier-gift-bar:not(.vd-gift-hidden)) .vd-tier-row {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      border-bottom: none;
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-gift-bar {
+      background: var(--vd-accent, #f59e0b);
+      color: #ffffff;
+      padding: 7px 16px;
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
+      margin-top: -2px;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 10px -2px rgba(245, 158, 11, 0.25);
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-gift-bar.vd-gift-hidden {
+      display: none !important;
+    }
+
+    #vd-widget-{{ block.id }} .vd-tier-thumb {
+      border: 1px solid #e5e7eb;
     }
 
     /* Floating Most Popular Corner Badge */
@@ -475,9 +546,22 @@
         tiers.forEach(t => {
           t.classList.remove('is-selected');
           t.setAttribute('aria-checked', 'false');
+          const card = t.closest('.vd-tier-card');
+          if (card) card.classList.remove('is-selected');
         });
         item.classList.add('is-selected');
         item.setAttribute('aria-checked', 'true');
+        const activeCard = item.closest('.vd-tier-card');
+        if (activeCard) activeCard.classList.add('is-selected');
+
+        // Toggle gift ribbons
+        const allGiftBars = container.querySelectorAll('.vd-tier-gift-bar');
+        allGiftBars.forEach(gb => gb.classList.add('vd-gift-hidden'));
+
+        if (activeCard) {
+          const cardGiftBar = activeCard.querySelector('.vd-tier-gift-bar');
+          if (cardGiftBar) cardGiftBar.classList.remove('vd-gift-hidden');
+        }
 
         const qty = parseInt(item.getAttribute('data-qty') || '1', 10);
         syncThemeQuantity(qty);
@@ -499,8 +583,7 @@
       // Initial sync with default selected tier
       const initiallySelected = container.querySelector('.vd-tier-row.is-selected') || tiers[0];
       if (initiallySelected) {
-        const initQty = parseInt(initiallySelected.getAttribute('data-qty') || '1', 10);
-        syncThemeQuantity(initQty);
+        selectTier(initiallySelected);
       }
 
       // Dynamic Price update on variant changes
@@ -557,6 +640,8 @@
           const qty = parseInt(selected.getAttribute('data-qty') || '1', 10);
           const discount = selected.getAttribute('data-discount') || '0';
           const tierTitle = selected.querySelector('.vd-tier-title') ? selected.querySelector('.vd-tier-title').textContent.trim() : 'Tier';
+          const giftType = selected.getAttribute('data-gift-type');
+          const giftVariantId = selected.getAttribute('data-gift-variant-id');
 
           const btnText = actionBtn.querySelector('.vd-btn-text');
           const btnLoader = actionBtn.querySelector('.vd-btn-loader');
@@ -567,23 +652,45 @@
           if (feedbackEl) feedbackEl.style.display = 'none';
 
           try {
+            const items = [{
+              id: parseInt(currentVariantId, 10),
+              quantity: qty,
+              properties: {
+                '_bundle_type': 'volume_discount',
+                '_volume_tier': tierTitle,
+                '_volume_discount': discount + '%'
+              }
+            }];
+
+            // If a free gift product is configured, add to cart with 100% discount
+            if (giftType === 'gift' && giftVariantId) {
+              const cleanGid = giftVariantId.split('/').pop();
+              items.push({
+                id: parseInt(cleanGid, 10),
+                quantity: 1,
+                properties: {
+                  '_bundle_type': 'volume_discount_gift',
+                  '_free_gift': 'true',
+                  '_bundle_parent': tierTitle
+                }
+              });
+            }
+
+            const bodyPayload = { items };
+            if (giftType === 'shipping') {
+              bodyPayload.attributes = {
+                '_free_shipping': 'true',
+                '_volume_tier': tierTitle
+              };
+            }
+
             const response = await fetch('/cart/add.js', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
               },
-              body: JSON.stringify({
-                items: [{
-                  id: parseInt(currentVariantId, 10),
-                  quantity: qty,
-                  properties: {
-                    '_bundle_type': 'volume_discount',
-                    '_volume_tier': tierTitle,
-                    '_volume_discount': discount + '%'
-                  }
-                }]
-              })
+              body: JSON.stringify(bodyPayload)
             });
 
             if (response.ok) {
