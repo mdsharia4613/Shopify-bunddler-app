@@ -199,25 +199,34 @@ export default function BxgyBuilder() {
 
     const [isSaving, setIsSaving] = useState(false);
 
-    // Helper: recalculate discount and totalQty when quantities change
+    // Helper: recalculate discount and totalQty when quantities change (supports 0 Get Free)
     const updateTier = (idx, field, value) => {
         const next = [...tiers];
         next[idx][field] = value;
 
         if (field === "buyQty" || field === "getQty") {
-            const bQty = parseInt(field === "buyQty" ? value : next[idx].buyQty, 10) || 1;
-            const gQty = parseInt(field === "getQty" ? value : next[idx].getQty, 10) || 1;
+            const rawB = field === "buyQty" ? value : next[idx].buyQty;
+            const rawG = field === "getQty" ? value : next[idx].getQty;
+
+            const bQty = Math.max(1, parseInt(rawB, 10) || 1);
+            const parsedG = parseInt(rawG, 10);
+            const gQty = isNaN(parsedG) ? 0 : Math.max(0, parsedG);
+
             const total = bQty + gQty;
-            const disc = Math.round((gQty / total) * 100);
+            const disc = total > 0 && gQty > 0 ? Math.round((gQty / total) * 100) : 0;
 
             next[idx].buyQty = bQty;
             next[idx].getQty = gQty;
             next[idx].totalQty = total;
             next[idx].discount = disc;
-            next[idx].saveTag = `SAVE ${disc}%`;
+            next[idx].saveTag = disc > 0 ? `SAVE ${disc}%` : "";
 
             if (!next[idx].customTitle) {
-                next[idx].title = `Buy ${bQty} Get ${gQty} Free`;
+                if (gQty > 0) {
+                    next[idx].title = `Buy ${bQty} Get ${gQty} Free`;
+                } else {
+                    next[idx].title = bQty === 1 ? "Standard (Single)" : `Buy ${bQty}`;
+                }
             }
         }
 
@@ -532,7 +541,7 @@ export default function BxgyBuilder() {
                                             </label>
                                             <input
                                                 type="number"
-                                                min="1"
+                                                min="0"
                                                 value={tier.getQty}
                                                 onChange={(e) => updateTier(idx, "getQty", e.target.value)}
                                                 style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px", boxSizing: "border-box" }}
@@ -738,14 +747,17 @@ export default function BxgyBuilder() {
                                                     {tier.title}
                                                 </div>
                                                 <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
-                                                    {tier.buyQty} Paid + {tier.getQty} Free ({tier.totalQty} total items)
+                                                    {tier.getQty > 0
+                                                        ? `${tier.buyQty} Paid + ${tier.getQty} Free (${tier.totalQty} total items)`
+                                                        : `${tier.buyQty} Item${tier.buyQty > 1 ? "s" : ""} (Standard)`
+                                                    }
                                                 </div>
                                             </div>
                                         </div>
 
                                         {/* Right Side: Save Pill & Final Price */}
                                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px" }}>
-                                            {tier.saveTag && (
+                                            {tier.discount > 0 && tier.saveTag && (
                                                 <span
                                                     style={{
                                                         color: accentColor,
@@ -762,9 +774,11 @@ export default function BxgyBuilder() {
                                             <div style={{ fontSize: "16px", fontWeight: 800, color: "#111827" }}>
                                                 ${(finalCents / 100).toFixed(2)}
                                             </div>
-                                            <div style={{ fontSize: "12px", color: "#9ca3af", textDecoration: "line-through" }}>
-                                                ${(rawCents / 100).toFixed(2)}
-                                            </div>
+                                            {tier.discount > 0 && (
+                                                <div style={{ fontSize: "12px", color: "#9ca3af", textDecoration: "line-through" }}>
+                                                    ${(rawCents / 100).toFixed(2)}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );
