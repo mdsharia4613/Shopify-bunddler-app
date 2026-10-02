@@ -27,7 +27,7 @@ export const action = async ({ request }) => {
     const bundleId = formData.get("bundleId");
     const title = formData.get("title") || "Volume Discounts";
     const strategy = "Volume Discounts";
-    const discountSummary = formData.get("discountSummary") || "Up to 20% OFF";
+    const discountSummary = formData.get("discountSummary") || "Up to 15% OFF";
     const configRaw = formData.get("config");
 
     let parsedConfig = {};
@@ -90,10 +90,10 @@ export const action = async ({ request }) => {
                                     title: savedBundle.title,
                                     headerTitle: parsedConfig.headerTitle || "",
                                     headerSubtitle: parsedConfig.headerSubtitle || "",
-                                    footerHeading: parsedConfig.footerHeading || "Quantity breaks for same product",
-                                    footerSubheading: parsedConfig.footerSubheading || "Single, Duo, Trio volume tiers",
+                                    footerHeading: parsedConfig.footerHeading || "",
+                                    footerSubheading: parsedConfig.footerSubheading || "",
                                     buttonText: parsedConfig.buttonText || "Choose",
-                                    accentColor: parsedConfig.accentColor || "#eab308",
+                                    accentColor: parsedConfig.accentColor || "#f59e0b",
                                     cardBg: parsedConfig.cardBg || "#ffffff",
                                     borderColor: parsedConfig.borderColor || "#e5e7eb",
                                     textColor: parsedConfig.textColor || "#111827",
@@ -126,7 +126,7 @@ export default function VolumeDiscountBuilder() {
     const submit = useSubmit();
     const navigate = useNavigate();
 
-    const brandColorParam = searchParams.get("color") || "#eab308";
+    const brandColorParam = searchParams.get("color") || "#f59e0b";
 
     // Initial state parse from existing bundle
     let parsedInitial = null;
@@ -138,20 +138,43 @@ export default function VolumeDiscountBuilder() {
 
     const [title, setTitle] = useState(existingBundle?.title || "Volume Discounts");
     const [headerTitle, setHeaderTitle] = useState(parsedInitial?.headerTitle || "");
-    const [footerHeading, setFooterHeading] = useState(parsedInitial?.footerHeading || "Quantity breaks for same product");
-    const [footerSubheading, setFooterSubheading] = useState(parsedInitial?.footerSubheading || "Single, Duo, Trio volume tiers");
-    const [buttonText, setButtonText] = useState(parsedInitial?.buttonText || "Choose");
     const [accentColor, setAccentColor] = useState(parsedInitial?.accentColor || brandColorParam);
     const [defaultTier, setDefaultTier] = useState(parsedInitial?.defaultTier || 2);
+    const [buttonText, setButtonText] = useState(parsedInitial?.buttonText || "Choose");
 
     // Interactive preview selected tier state
     const [previewSelectedTier, setPreviewSelectedTier] = useState(defaultTier);
 
+    // Initial Tiers matching the exact reference image
     const [tiers, setTiers] = useState(
         parsedInitial?.tiers || [
-            { id: 1, qty: 1, title: "Buy 1 (Single)", discount: 0, badge: "" },
-            { id: 2, qty: 2, title: "Buy 2 (Duo Pack)", discount: 10, badge: "Save 10%" },
-            { id: 3, qty: 3, title: "Buy 3 (Trio Pack)", discount: 20, badge: "Save 20%" },
+            {
+                id: 1,
+                qty: 1,
+                title: "Single",
+                subtitle: "Standard price",
+                discount: 0,
+                saveTag: "",
+                popularBadge: "",
+            },
+            {
+                id: 2,
+                qty: 2,
+                title: "Duo",
+                subtitle: "You save 15%",
+                discount: 15,
+                saveTag: "SAVE $30.00",
+                popularBadge: "Most Popular",
+            },
+            {
+                id: 3,
+                qty: 3,
+                title: "Trio",
+                subtitle: "You save 20%",
+                discount: 20,
+                saveTag: "SAVE $60.00",
+                popularBadge: "",
+            },
         ]
     );
 
@@ -165,15 +188,17 @@ export default function VolumeDiscountBuilder() {
     // Add new tier
     const handleAddTier = () => {
         const nextQty = tiers.length > 0 ? tiers[tiers.length - 1].qty + 1 : 1;
-        const nextDiscount = tiers.length > 0 ? tiers[tiers.length - 1].discount + 10 : 10;
+        const nextDiscount = tiers.length > 0 ? Math.min(tiers[tiers.length - 1].discount + 5, 50) : 10;
         setTiers([
             ...tiers,
             {
                 id: Date.now(),
                 qty: nextQty,
-                title: `Buy ${nextQty} (Pack of ${nextQty})`,
-                discount: Math.min(nextDiscount, 50),
-                badge: `Save ${Math.min(nextDiscount, 50)}%`,
+                title: `Pack ${nextQty}`,
+                subtitle: `You save ${nextDiscount}%`,
+                discount: nextDiscount,
+                saveTag: `SAVE ${nextDiscount}%`,
+                popularBadge: "",
             },
         ]);
     };
@@ -200,12 +225,10 @@ export default function VolumeDiscountBuilder() {
         }
 
         const maxDisc = Math.max(...tiers.map((t) => Number(t.discount) || 0));
-        const discountSummary = maxDisc > 0 ? `Up to ${maxDisc}% OFF` : "Standard Pricing";
+        const discountSummary = maxDisc > 0 ? `Up to ${maxDisc}% OFF` : "Volume Pricing";
 
         const config = {
             headerTitle,
-            footerHeading,
-            footerSubheading,
             buttonText,
             accentColor,
             defaultTier: Number(defaultTier),
@@ -223,16 +246,17 @@ export default function VolumeDiscountBuilder() {
         submit(formData, { method: "POST" });
     };
 
-    // Sample price for preview calculation
-    const sampleItemPrice = 45.0;
+    // Sample price for preview calculation (same as image: $100.00 single)
+    const sampleItemPrice = 100.0;
 
     return (
         <s-page heading="Volume Discounts Customizer">
             <s-link slot="breadcrumb" href="/app/templates">Back to Templates</s-link>
-            
+
+            {/* Header Action Bar */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
                 <p style={{ margin: 0, color: "#4b5563", fontSize: "14px" }}>
-                    Configure your Volume Discounts widget. Once published, it will be saved to your Dashboard and synced with your storefront!
+                    Configure the exact discount price, savings pill, and badges. Live changes update in the preview!
                 </p>
                 <div style={{ display: "flex", gap: "10px" }}>
                     <button
@@ -268,68 +292,45 @@ export default function VolumeDiscountBuilder() {
                 </div>
             </div>
 
+            {/* 2-Column Layout: Controls & Live Preview */}
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "24px", alignItems: "start" }}>
-                
-                {/* বাম পাশ: সেটিংস ও টিয়ার কনফিগারেশন */}
+
+                {/* বাম পাশ: সেটিংস */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                    
+
                     {/* General Settings */}
                     <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e5e7eb", padding: "20px" }}>
                         <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: "700" }}>General Settings</h3>
-                        
+
                         <div style={{ marginBottom: "14px" }}>
                             <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
-                                Bundle Name (for your dashboard)
+                                Bundle Name (for dashboard)
                             </label>
                             <input
                                 type="text"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
                                 style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "14px" }}
-                                placeholder="e.g. Volume Discounts - Everyday Pack"
+                                placeholder="e.g. Volume Discounts - Tiered Pack"
                             />
-                        </div>
-
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
-                            <div>
-                                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
-                                    Footer Title
-                                </label>
-                                <input
-                                    type="text"
-                                    value={footerHeading}
-                                    onChange={(e) => setFooterHeading(e.target.value)}
-                                    style={{ width: "100%", padding: "9px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
-                                />
-                            </div>
-                            <div>
-                                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
-                                    Footer Subtitle
-                                </label>
-                                <input
-                                    type="text"
-                                    value={footerSubheading}
-                                    onChange={(e) => setFooterSubheading(e.target.value)}
-                                    style={{ width: "100%", padding: "9px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
-                                />
-                            </div>
                         </div>
 
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                             <div>
                                 <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
-                                    Action Button Text
+                                    Widget Title (Optional)
                                 </label>
                                 <input
                                     type="text"
-                                    value={buttonText}
-                                    onChange={(e) => setButtonText(e.target.value)}
+                                    value={headerTitle}
+                                    onChange={(e) => setHeaderTitle(e.target.value)}
+                                    placeholder="e.g. Select Quantity & Save"
                                     style={{ width: "100%", padding: "9px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
                                 />
                             </div>
                             <div>
                                 <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
-                                    Highlight / Accent Color
+                                    Accent / Highlight Color
                                 </label>
                                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                                     <input
@@ -347,7 +348,7 @@ export default function VolumeDiscountBuilder() {
                     {/* Tiers Settings */}
                     <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e5e7eb", padding: "20px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700" }}>Discount Tiers</h3>
+                            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700" }}>Discount Tiers (Exact Layout)</h3>
                             <button
                                 type="button"
                                 onClick={handleAddTier}
@@ -365,33 +366,33 @@ export default function VolumeDiscountBuilder() {
                             </button>
                         </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                             {tiers.map((t, idx) => (
                                 <div
                                     key={t.id || idx}
                                     style={{
                                         border: "1px solid #e5e7eb",
-                                        borderRadius: "8px",
-                                        padding: "14px",
+                                        borderRadius: "10px",
+                                        padding: "16px",
                                         backgroundColor: "#f9fafb",
                                     }}
                                 >
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                             <span style={{ fontWeight: "700", fontSize: "14px", color: "#111827" }}>
                                                 Tier {idx + 1}
                                             </span>
-                                            <label style={{ fontSize: "12px", color: "#4b5563", display: "flex", alignItems: "center", gap: "4px", marginLeft: "12px", cursor: "pointer" }}>
+                                            <label style={{ fontSize: "12px", color: "#4b5563", display: "flex", alignItems: "center", gap: "4px", marginLeft: "8px", cursor: "pointer" }}>
                                                 <input
                                                     type="radio"
-                                                    name="default_tier"
+                                                    name="default_tier_select"
                                                     checked={Number(defaultTier) === idx + 1}
                                                     onChange={() => {
                                                         setDefaultTier(idx + 1);
                                                         setPreviewSelectedTier(idx + 1);
                                                     }}
                                                 />
-                                                Set as Default
+                                                Default Selected
                                             </label>
                                         </div>
                                         {tiers.length > 1 && (
@@ -405,10 +406,11 @@ export default function VolumeDiscountBuilder() {
                                         )}
                                     </div>
 
-                                    <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1.2fr", gap: "10px" }}>
+                                    {/* Inputs Grid */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: "10px", marginBottom: "10px" }}>
                                         <div>
                                             <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#6b7280", marginBottom: "4px" }}>
-                                                Title
+                                                Title (e.g. Single, Duo)
                                             </label>
                                             <input
                                                 type="text"
@@ -441,26 +443,53 @@ export default function VolumeDiscountBuilder() {
                                                 onChange={(e) => {
                                                     const disc = parseInt(e.target.value, 10) || 0;
                                                     handleTierChange(idx, "discount", disc);
-                                                    if (disc > 0 && !t.badge) {
-                                                        handleTierChange(idx, "badge", `Save ${disc}%`);
+                                                    if (disc > 0 && !t.subtitle) {
+                                                        handleTierChange(idx, "subtitle", `You save ${disc}%`);
                                                     }
                                                 }}
                                                 style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
                                             />
                                         </div>
+                                    </div>
+
+                                    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: "10px" }}>
                                         <div>
                                             <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#6b7280", marginBottom: "4px" }}>
-                                                Badge / Right Label
+                                                Subtitle (e.g. Standard price, You save 15%)
                                             </label>
                                             <input
                                                 type="text"
-                                                value={t.badge}
-                                                onChange={(e) => handleTierChange(idx, "badge", e.target.value)}
-                                                placeholder="e.g. Save 10%"
+                                                value={t.subtitle}
+                                                onChange={(e) => handleTierChange(idx, "subtitle", e.target.value)}
+                                                style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#6b7280", marginBottom: "4px" }}>
+                                                Save Tag Pill (e.g. SAVE $30.00)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={t.saveTag}
+                                                onChange={(e) => handleTierChange(idx, "saveTag", e.target.value)}
+                                                placeholder="e.g. SAVE $30.00"
+                                                style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: "block", fontSize: "11px", fontWeight: "600", color: "#6b7280", marginBottom: "4px" }}>
+                                                Corner Badge (e.g. Most Popular)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={t.popularBadge}
+                                                onChange={(e) => handleTierChange(idx, "popularBadge", e.target.value)}
+                                                placeholder="e.g. Most Popular"
                                                 style={{ width: "100%", padding: "7px 10px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
                                             />
                                         </div>
                                     </div>
+
                                 </div>
                             ))}
                         </div>
@@ -468,133 +497,186 @@ export default function VolumeDiscountBuilder() {
 
                 </div>
 
-                {/* ডান পাশ: লাইভ স্টোরফ্রন্ট প্রিভিউ */}
+                {/* ডান পাশ: লাইভ প্রিভিউ (হুবহু ইমেজ ডিজাইন) */}
                 <div style={{ position: "sticky", top: "20px" }}>
-                    <div style={{ marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontWeight: "700", fontSize: "14px", color: "#374151" }}>Live Storefront Preview</span>
-                        <span style={{ fontSize: "12px", color: "#6b7280" }}>Click cards to test interactivity</span>
+                    <div style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontWeight: "700", fontSize: "14px", color: "#1f2937" }}>
+                            Live Storefront Preview
+                        </span>
+                        <span style={{ fontSize: "12px", color: "#6b7280" }}>
+                            Based on sample $100.00 item
+                        </span>
                     </div>
 
                     <div
                         style={{
                             background: "#ffffff",
-                            border: "1px solid #e5e7eb",
+                            padding: "24px 20px",
                             borderRadius: "16px",
-                            padding: "20px 18px",
                             boxShadow: "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
+                            border: "1px solid #f3f4f6",
                         }}
                     >
                         {headerTitle && (
-                            <div style={{ marginBottom: "14px" }}>
-                                <h3 style={{ margin: "0 0 4px", fontSize: "16px", fontWeight: "700", color: "#111827" }}>
-                                    {headerTitle}
-                                </h3>
-                            </div>
+                            <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", fontWeight: "700", color: "#111827" }}>
+                                {headerTitle}
+                            </h3>
                         )}
 
                         {/* Tiers List */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                             {tiers.map((t, idx) => {
                                 const isSelected = previewSelectedTier === idx + 1;
                                 const rawTotal = sampleItemPrice * t.qty;
-                                const discountedTotal = rawTotal - rawTotal * ((Number(t.discount) || 0) / 100);
+                                const discountPct = Number(t.discount) || 0;
+                                const savedAmount = rawTotal * (discountPct / 100);
+                                const finalTotal = rawTotal - savedAmount;
 
                                 return (
                                     <div
                                         key={t.id || idx}
                                         onClick={() => setPreviewSelectedTier(idx + 1)}
                                         style={{
+                                            position: "relative",
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "space-between",
-                                            padding: "13px 16px",
-                                            border: isSelected ? `1.5px solid ${accentColor}` : "1px solid #e5e7eb",
+                                            padding: "16px 20px",
                                             borderRadius: "10px",
-                                            backgroundColor: isSelected ? "#fffdf5" : "#ffffff",
                                             cursor: "pointer",
-                                            transition: "all 0.2s ease",
-                                            boxShadow: isSelected ? `0 0 0 1px ${accentColor}` : "none",
+                                            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                                            userSelect: "none",
+                                            backgroundColor: isSelected ? "#fffdf5" : "#fffefc",
+                                            border: isSelected
+                                                ? `2px solid ${accentColor}`
+                                                : "1.5px solid #fde68a",
+                                            boxShadow: isSelected
+                                                ? `0 2px 8px -2px ${accentColor}33`
+                                                : "none",
                                         }}
                                     >
-                                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                        {/* Floating Most Popular Corner Badge */}
+                                        {t.popularBadge && (
                                             <div
                                                 style={{
-                                                    width: "16px",
-                                                    height: "16px",
+                                                    position: "absolute",
+                                                    top: "-14px",
+                                                    right: "14px",
+                                                    backgroundColor: accentColor,
+                                                    color: "#ffffff",
+                                                    padding: "4px 14px",
+                                                    borderRadius: "20px",
+                                                    fontSize: "12px",
+                                                    fontWeight: "700",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "4px",
+                                                    boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                                                    letterSpacing: "0.2px",
+                                                    zIndex: 2,
+                                                }}
+                                            >
+                                                <span>✨</span>
+                                                <span>{t.popularBadge}</span>
+                                            </div>
+                                        )}
+
+                                        {/* Left Side: Radio + Title + Tag + Subtitle */}
+                                        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                                            {/* Custom Radio Button */}
+                                            <div
+                                                style={{
+                                                    width: "22px",
+                                                    height: "22px",
                                                     borderRadius: "50%",
-                                                    border: isSelected ? `1.5px solid ${accentColor}` : "1.5px solid #d1d5db",
+                                                    border: isSelected ? `2.5px solid ${accentColor}` : "2px solid #fcd34d",
                                                     display: "flex",
                                                     alignItems: "center",
                                                     justifyContent: "center",
+                                                    flexShrink: 0,
+                                                    backgroundColor: "#ffffff",
                                                 }}
                                             >
                                                 {isSelected && (
                                                     <div
                                                         style={{
-                                                            width: "8px",
-                                                            height: "8px",
+                                                            width: "10px",
+                                                            height: "10px",
                                                             borderRadius: "50%",
                                                             backgroundColor: accentColor,
                                                         }}
                                                     />
                                                 )}
                                             </div>
-                                            <span style={{ fontSize: "14.5px", fontWeight: "500", color: "#111827" }}>
-                                                {t.title}
-                                            </span>
+
+                                            {/* Title & Subtitle */}
+                                            <div>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                    <span style={{ fontSize: "18px", fontWeight: "700", color: "#111827" }}>
+                                                        {t.title}
+                                                    </span>
+
+                                                    {/* Save Pill Tag */}
+                                                    {t.saveTag ? (
+                                                        <span
+                                                            style={{
+                                                                backgroundColor: "#fef3c7",
+                                                                color: "#92400e",
+                                                                fontSize: "11.5px",
+                                                                fontWeight: "700",
+                                                                padding: "3px 8px",
+                                                                borderRadius: "6px",
+                                                                textTransform: "uppercase",
+                                                                letterSpacing: "0.3px",
+                                                            }}
+                                                        >
+                                                            {t.saveTag}
+                                                        </span>
+                                                    ) : discountPct > 0 ? (
+                                                        <span
+                                                            style={{
+                                                                backgroundColor: "#fef3c7",
+                                                                color: "#92400e",
+                                                                fontSize: "11.5px",
+                                                                fontWeight: "700",
+                                                                padding: "3px 8px",
+                                                                borderRadius: "6px",
+                                                                textTransform: "uppercase",
+                                                            }}
+                                                        >
+                                                            SAVE ${savedAmount.toFixed(2)}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+
+                                                {/* Subtitle */}
+                                                <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "2px" }}>
+                                                    {t.subtitle || (discountPct > 0 ? `You save ${discountPct}%` : "Standard price")}
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14.5px", fontWeight: "600" }}>
-                                            {t.badge ? (
-                                                <span style={{ color: isSelected ? accentColor : "#4b5563", fontWeight: "700" }}>
-                                                    {t.badge}
-                                                </span>
-                                            ) : (
-                                                <span style={{ color: "#111827" }}>
-                                                    ${discountedTotal.toFixed(2)}
-                                                </span>
+                                        {/* Right Side: Price & Strikethrough */}
+                                        <div style={{ textAlign: "right" }}>
+                                            <div style={{ fontSize: "20px", fontWeight: "800", color: "#111827" }}>
+                                                ${finalTotal.toFixed(2)}
+                                            </div>
+                                            {discountPct > 0 && (
+                                                <div
+                                                    style={{
+                                                        fontSize: "13px",
+                                                        color: "#9ca3af",
+                                                        textDecoration: "line-through",
+                                                        marginTop: "1px",
+                                                    }}
+                                                >
+                                                    ${rawTotal.toFixed(2)}
+                                                </div>
                                             )}
                                         </div>
                                     </div>
                                 );
                             })}
-                        </div>
-
-                        {/* Footer Information */}
-                        {(footerHeading || footerSubheading) && (
-                            <div style={{ textAlign: "center", margin: "28px 0 16px" }}>
-                                {footerHeading && (
-                                    <h4 style={{ margin: "0 0 4px", fontSize: "14.5px", fontWeight: "700", color: "#111827" }}>
-                                        {footerHeading}
-                                    </h4>
-                                )}
-                                {footerSubheading && (
-                                    <p style={{ margin: 0, fontSize: "13px", color: "#6b7280" }}>
-                                        {footerSubheading}
-                                    </p>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Action Button */}
-                        <div style={{ marginTop: "14px" }}>
-                            <button
-                                type="button"
-                                style={{
-                                    width: "100%",
-                                    backgroundColor: "#111827",
-                                    color: "#ffffff",
-                                    border: "none",
-                                    borderRadius: "8px",
-                                    padding: "13px 20px",
-                                    fontSize: "15px",
-                                    fontWeight: "600",
-                                    cursor: "pointer",
-                                    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.08)",
-                                }}
-                            >
-                                {buttonText}
-                            </button>
                         </div>
                     </div>
                 </div>

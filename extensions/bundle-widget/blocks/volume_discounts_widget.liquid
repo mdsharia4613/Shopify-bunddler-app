@@ -1,8 +1,11 @@
 {% comment %}
   Volume Discounts App Block
-  Supports both:
-  1. Live Sync from App Dashboard Metafields (when published from Smart Bundle App)
-  2. Native Theme Block Settings (fallback & theme editor customization)
+  Exact matching design:
+  - Radio selection with active accent ring
+  - Title with 'SAVE $XX' pill
+  - Subtitle (e.g. 'Standard price', 'You save 15%')
+  - Discounted price with strikethrough original price
+  - Floating 'Most Popular' badge with sparkles ✨
 {% endcomment %}
 
 {% if product %}
@@ -13,28 +16,11 @@
   {% assign vd_meta = app.metafields.smart_bundles.active_volume_discount.value %}
 
   {% assign display_accent = block.settings.accent_color %}
-  {% assign display_card_bg = block.settings.card_bg %}
-  {% assign display_text_color = block.settings.text_color %}
-  {% assign display_btn_bg = block.settings.btn_bg %}
-  {% assign display_btn_text = block.settings.btn_text_color %}
-  {% assign display_border_color = block.settings.border_color %}
-  {% assign display_button_text = block.settings.button_text %}
-  {% assign display_footer_heading = block.settings.footer_heading %}
-  {% assign display_footer_subheading = block.settings.footer_subheading %}
   {% assign display_header_title = block.settings.header_title %}
 
   {% if vd_meta %}
     {% if vd_meta.accentColor != blank %}
       {% assign display_accent = vd_meta.accentColor %}
-    {% endif %}
-    {% if vd_meta.buttonText != blank %}
-      {% assign display_button_text = vd_meta.buttonText %}
-    {% endif %}
-    {% if vd_meta.footerHeading != blank %}
-      {% assign display_footer_heading = vd_meta.footerHeading %}
-    {% endif %}
-    {% if vd_meta.footerSubheading != blank %}
-      {% assign display_footer_subheading = vd_meta.footerSubheading %}
     {% endif %}
     {% if vd_meta.headerTitle != blank %}
       {% assign display_header_title = vd_meta.headerTitle %}
@@ -49,32 +35,20 @@
     data-variant-id="{{ current_variant.id }}"
     data-base-price="{{ base_price }}"
     data-currency="{{ cart.currency.symbol }}"
-    data-meta-id="{{ vd_meta.id }}"
     style="
       --vd-accent: {{ display_accent }};
-      --vd-card-bg: {{ display_card_bg }};
-      --vd-text-color: {{ display_text_color }};
-      --vd-btn-bg: {{ display_btn_bg }};
-      --vd-btn-text: {{ display_btn_text }};
-      --vd-border-color: {{ display_border_color }};
     "
   >
-    <div class="vd-card">
-      <!-- Widget Header (Optional) -->
+    <div class="vd-card-wrap">
       {% if display_header_title != blank %}
-        <div class="vd-header">
-          <h3 class="vd-main-title">{{ display_header_title }}</h3>
-          {% if block.settings.header_subtitle != blank %}
-            <p class="vd-main-subtitle">{{ block.settings.header_subtitle }}</p>
-          {% endif %}
-        </div>
+        <h3 class="vd-main-title">{{ display_header_title }}</h3>
       {% endif %}
 
       <!-- Tiers List -->
       <div class="vd-tiers-list" role="radiogroup" aria-label="Volume Discount Tiers">
-        
+
         {% if vd_meta != blank and vd_meta.tiers != blank and vd_meta.tiers.size > 0 %}
-          {% comment %} Render Dynamic Tiers Configured & Published from App {% endcomment %}
+          {% comment %} Render Tiers Configured & Published from App {% endcomment %}
           {% for tier in vd_meta.tiers %}
             {% assign tier_idx = forloop.index %}
             {% assign is_selected = false %}
@@ -84,141 +58,146 @@
               {% assign is_selected = true %}
             {% endif %}
 
+            {% assign raw_cents = base_price | times: tier.qty %}
+            {% assign disc_pct = tier.discount | plus: 0 %}
+            {% assign disc_cents = raw_cents | times: disc_pct | divided_by: 100 %}
+            {% assign final_cents = raw_cents | minus: disc_cents %}
+
             <div 
-              class="vd-tier-item {% if is_selected %}is-selected{% endif %}"
+              class="vd-tier-row {% if is_selected %}is-selected{% endif %}"
               data-tier="{{ tier_idx }}"
               data-qty="{{ tier.qty }}"
-              data-discount="{{ tier.discount }}"
+              data-discount="{{ disc_pct }}"
               tabindex="0"
               role="radio"
               aria-checked="{% if is_selected %}true{% else %}false{% endif %}"
             >
+              <!-- Floating Corner Badge -->
+              {% if tier.popularBadge != blank %}
+                <div class="vd-popular-badge">
+                  <span>✨</span>
+                  <span>{{ tier.popularBadge }}</span>
+                </div>
+              {% endif %}
+
+              <!-- Left Column: Radio + Info -->
               <div class="vd-tier-left">
-                <span class="vd-tier-radio"></span>
-                <span class="vd-tier-title">{{ tier.title }}</span>
+                <span class="vd-radio-dot"></span>
+                <div class="vd-tier-info">
+                  <div class="vd-title-row">
+                    <span class="vd-tier-title">{{ tier.title }}</span>
+                    {% if tier.saveTag != blank %}
+                      <span class="vd-save-pill">{{ tier.saveTag }}</span>
+                    {% elsif disc_pct > 0 %}
+                      <span class="vd-save-pill" data-save-pill="{{ tier_idx }}">
+                        SAVE {{ disc_cents | money }}
+                      </span>
+                    {% endif %}
+                  </div>
+                  <div class="vd-tier-subtitle">
+                    {% if tier.subtitle != blank %}
+                      {{ tier.subtitle }}
+                    {% elsif disc_pct > 0 %}
+                      You save {{ disc_pct }}%
+                    {% else %}
+                      Standard price
+                    {% endif %}
+                  </div>
+                </div>
               </div>
+
+              <!-- Right Column: Final Price + Strikethrough -->
               <div class="vd-tier-right">
-                {% if tier.badge != blank %}
-                  <span class="vd-tier-badge vd-highlight-text">{{ tier.badge }}</span>
-                {% else %}
-                  <span class="vd-tier-price" data-tier-price="{{ tier_idx }}">
-                    {% assign t_raw = base_price | times: tier.qty %}
-                    {% assign t_disc = t_raw | times: tier.discount | divided_by: 100 %}
-                    {{ t_raw | minus: t_disc | money }}
-                  </span>
+                <div class="vd-final-price" data-final-price="{{ tier_idx }}">
+                  {{ final_cents | money }}
+                </div>
+                {% if disc_pct > 0 %}
+                  <div class="vd-strikethrough-price" data-raw-price="{{ tier_idx }}">
+                    {{ raw_cents | money }}
+                  </div>
                 {% endif %}
               </div>
             </div>
           {% endfor %}
 
         {% else %}
-          {% comment %} Fallback: Theme Editor Block Settings Tiers {% endcomment %}
+          {% comment %} Fallback: Pre-configured 3 Tiers (Single, Duo, Trio) matching the design {% endcomment %}
           
-          <!-- Tier 1 -->
-          {% if block.settings.tier_1_qty > 0 %}
-            <div 
-              class="vd-tier-item {% if block.settings.default_tier == '1' %}is-selected{% endif %}"
-              data-tier="1"
-              data-qty="{{ block.settings.tier_1_qty }}"
-              data-discount="{{ block.settings.tier_1_discount }}"
-              tabindex="0"
-              role="radio"
-              aria-checked="{% if block.settings.default_tier == '1' %}true{% else %}false{% endif %}"
-            >
-              <div class="vd-tier-left">
-                <span class="vd-tier-radio"></span>
-                <span class="vd-tier-title">{{ block.settings.tier_1_title }}</span>
-              </div>
-              <div class="vd-tier-right">
-                <span class="vd-tier-price" data-tier-price="1">
-                  {{ base_price | times: block.settings.tier_1_qty | money }}
-                </span>
-                {% if block.settings.tier_1_badge != blank %}
-                  <span class="vd-tier-badge">{{ block.settings.tier_1_badge }}</span>
-                {% endif %}
+          <!-- Tier 1: Single -->
+          <div 
+            class="vd-tier-row {% if block.settings.default_tier == '1' %}is-selected{% endif %}"
+            data-tier="1"
+            data-qty="{{ block.settings.tier_1_qty }}"
+            data-discount="{{ block.settings.tier_1_discount }}"
+            tabindex="0"
+            role="radio"
+            aria-checked="{% if block.settings.default_tier == '1' %}true{% else %}false{% endif %}"
+          >
+            <div class="vd-tier-left">
+              <span class="vd-radio-dot"></span>
+              <div class="vd-tier-info">
+                <div class="vd-title-row">
+                  <span class="vd-tier-title">{{ block.settings.tier_1_title }}</span>
+                </div>
+                <div class="vd-tier-subtitle">Standard price</div>
               </div>
             </div>
-          {% endif %}
+            <div class="vd-tier-right">
+              <div class="vd-final-price" data-final-price="1">
+                {{ base_price | times: block.settings.tier_1_qty | money }}
+              </div>
+            </div>
+          </div>
 
-          <!-- Tier 2 -->
-          {% if block.settings.tier_2_qty > 0 %}
-            <div 
-              class="vd-tier-item {% if block.settings.default_tier == '2' %}is-selected{% endif %}"
-              data-tier="2"
-              data-qty="{{ block.settings.tier_2_qty }}"
-              data-discount="{{ block.settings.tier_2_discount }}"
-              tabindex="0"
-              role="radio"
-              aria-checked="{% if block.settings.default_tier == '2' %}true{% else %}false{% endif %}"
-            >
-              <div class="vd-tier-left">
-                <span class="vd-tier-radio"></span>
-                <span class="vd-tier-title">{{ block.settings.tier_2_title }}</span>
-              </div>
-              <div class="vd-tier-right">
-                {% if block.settings.tier_2_badge != blank %}
-                  <span class="vd-tier-badge vd-highlight-text">{{ block.settings.tier_2_badge }}</span>
-                {% else %}
-                  <span class="vd-tier-price" data-tier-price="2">
-                    {% assign t2_raw = base_price | times: block.settings.tier_2_qty %}
-                    {% assign t2_disc = t2_raw | times: block.settings.tier_2_discount | divided_by: 100 %}
-                    {{ t2_raw | minus: t2_disc | money }}
-                  </span>
-                {% endif %}
-              </div>
+          <!-- Tier 2: Duo (Popular) -->
+          {% assign t2_raw = base_price | times: block.settings.tier_2_qty %}
+          {% assign t2_disc = t2_raw | times: block.settings.tier_2_discount | divided_by: 100 %}
+          {% assign t2_final = t2_raw | minus: t2_disc %}
+          <div 
+            class="vd-tier-row {% if block.settings.default_tier == '2' %}is-selected{% endif %}"
+            data-tier="2"
+            data-qty="{{ block.settings.tier_2_qty }}"
+            data-discount="{{ block.settings.tier_2_discount }}"
+            tabindex="0"
+            role="radio"
+            aria-checked="{% if block.settings.default_tier == '2' %}true{% else %}false{% endif %}"
+          >
+            <div class="vd-popular-badge">
+              <span>✨</span>
+              <span>Most Popular</span>
             </div>
-          {% endif %}
 
-          <!-- Tier 3 -->
-          {% if block.settings.tier_3_qty > 0 %}
-            <div 
-              class="vd-tier-item {% if block.settings.default_tier == '3' %}is-selected{% endif %}"
-              data-tier="3"
-              data-qty="{{ block.settings.tier_3_qty }}"
-              data-discount="{{ block.settings.tier_3_discount }}"
-              tabindex="0"
-              role="radio"
-              aria-checked="{% if block.settings.default_tier == '3' %}true{% else %}false{% endif %}"
-            >
-              <div class="vd-tier-left">
-                <span class="vd-tier-radio"></span>
-                <span class="vd-tier-title">{{ block.settings.tier_3_title }}</span>
-              </div>
-              <div class="vd-tier-right">
-                {% if block.settings.tier_3_badge != blank %}
-                  <span class="vd-tier-badge vd-highlight-text">{{ block.settings.tier_3_badge }}</span>
-                {% else %}
-                  <span class="vd-tier-price" data-tier-price="3">
-                    {% assign t3_raw = base_price | times: block.settings.tier_3_qty %}
-                    {% assign t3_disc = t3_raw | times: block.settings.tier_3_discount | divided_by: 100 %}
-                    {{ t3_raw | minus: t3_disc | money }}
+            <div class="vd-tier-left">
+              <span class="vd-radio-dot"></span>
+              <div class="vd-tier-info">
+                <div class="vd-title-row">
+                  <span class="vd-tier-title">{{ block.settings.tier_2_title }}</span>
+                  <span class="vd-save-pill" data-save-pill="2">
+                    SAVE {{ t2_disc | money }}
                   </span>
-                {% endif %}
+                </div>
+                <div class="vd-tier-subtitle">You save {{ block.settings.tier_2_discount }}%</div>
               </div>
             </div>
-          {% endif %}
+            <div class="vd-tier-right">
+              <div class="vd-final-price" data-final-price="2">
+                {{ t2_final | money }}
+              </div>
+              <div class="vd-strikethrough-price" data-raw-price="2">
+                {{ t2_raw | money }}
+              </div>
+            </div>
+          </div>
 
         {% endif %}
 
       </div>
 
-      <!-- Description / Breaks Footer -->
-      {% if display_footer_heading != blank or display_footer_subheading != blank %}
-        <div class="vd-info-section">
-          {% if display_footer_heading != blank %}
-            <h4 class="vd-info-title">{{ display_footer_heading }}</h4>
-          {% endif %}
-          {% if display_footer_subheading != blank %}
-            <p class="vd-info-subtitle">{{ display_footer_subheading }}</p>
-          {% endif %}
-        </div>
-      {% endif %}
-
-      <!-- Action Button -->
+      <!-- Action Button (Optional) -->
       {% if block.settings.show_button %}
-        <div class="vd-action-wrapper">
-          <button type="button" class="vd-btn" id="vd-btn-{{ block.id }}">
-            <span class="vd-btn-text">{{ display_button_text }}</span>
+        <div class="vd-btn-wrap">
+          <button type="button" class="vd-action-btn" id="vd-btn-{{ block.id }}">
+            <span class="vd-btn-text">{{ block.settings.button_text }}</span>
             <span class="vd-btn-loader" style="display: none;">⏳ Adding...</span>
           </button>
           <div class="vd-feedback" id="vd-feedback-{{ block.id }}" style="display: none;"></div>
@@ -240,170 +219,174 @@
       box-sizing: border-box;
     }
 
-    #vd-widget-{{ block.id }} .vd-card {
-      background: var(--vd-card-bg, #ffffff);
-      border: 1px solid var(--vd-border-color, #e5e7eb);
-      border-radius: 16px;
-      padding: 20px 18px;
-      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
-      transition: all 0.25s ease;
-    }
-
-    #vd-widget-{{ block.id }} .vd-header {
-      margin-bottom: 16px;
-      text-align: left;
+    #vd-widget-{{ block.id }} .vd-card-wrap {
+      width: 100%;
     }
 
     #vd-widget-{{ block.id }} .vd-main-title {
       font-size: 17px;
       font-weight: 700;
-      margin: 0 0 4px;
-      color: var(--vd-text-color, #111827);
-    }
-
-    #vd-widget-{{ block.id }} .vd-main-subtitle {
-      font-size: 13px;
-      margin: 0;
-      color: #6b7280;
+      margin: 0 0 14px 0;
+      color: #111827;
     }
 
     #vd-widget-{{ block.id }} .vd-tiers-list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 14px;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-item {
+    #vd-widget-{{ block.id }} .vd-tier-row {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 13px 16px;
-      border: 1px solid var(--vd-border-color, #e5e7eb);
-      border-radius: 10px;
+      padding: 16px 20px;
+      border-radius: 12px;
       cursor: pointer;
-      background: #ffffff;
-      color: var(--vd-text-color, #111827);
+      background: #fffefc;
+      border: 1.5px solid #fde68a;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       user-select: none;
       outline: none;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-item:hover {
-      border-color: #cbd5e1;
+    #vd-widget-{{ block.id }} .vd-tier-row:hover {
+      border-color: var(--vd-accent, #f59e0b);
       transform: translateY(-1px);
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-item.is-selected {
-      border-color: var(--vd-accent, #eab308);
+    #vd-widget-{{ block.id }} .vd-tier-row.is-selected {
+      border: 2px solid var(--vd-accent, #f59e0b);
       background: #fffdf5;
-      box-shadow: 0 0 0 1px var(--vd-accent, #eab308);
+      box-shadow: 0 4px 12px -2px rgba(245, 158, 11, 0.15);
     }
 
+    /* Floating Most Popular Corner Badge */
+    #vd-widget-{{ block.id }} .vd-popular-badge {
+      position: absolute;
+      top: -13px;
+      right: 14px;
+      background-color: var(--vd-accent, #f59e0b);
+      color: #ffffff;
+      padding: 3px 12px;
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      letter-spacing: 0.2px;
+      z-index: 2;
+    }
+
+    /* Left Side: Radio & Info */
     #vd-widget-{{ block.id }} .vd-tier-left {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 14px;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-radio {
-      width: 16px;
-      height: 16px;
+    #vd-widget-{{ block.id }} .vd-radio-dot {
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
-      border: 1.5px solid #d1d5db;
-      display: inline-flex;
+      border: 2px solid #fcd34d;
+      display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s ease;
       flex-shrink: 0;
+      background: #ffffff;
+      transition: all 0.2s ease;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-item.is-selected .vd-tier-radio {
-      border-color: var(--vd-accent, #eab308);
+    #vd-widget-{{ block.id }} .vd-tier-row.is-selected .vd-radio-dot {
+      border: 2.5px solid var(--vd-accent, #f59e0b);
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-item.is-selected .vd-tier-radio::after {
+    #vd-widget-{{ block.id }} .vd-tier-row.is-selected .vd-radio-dot::after {
       content: "";
-      width: 8px;
-      height: 8px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
-      background: var(--vd-accent, #eab308);
+      background: var(--vd-accent, #f59e0b);
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-title {
-      font-size: 14.5px;
-      font-weight: 500;
-      color: var(--vd-text-color, #111827);
-    }
-
-    #vd-widget-{{ block.id }} .vd-tier-right {
+    #vd-widget-{{ block.id }} .vd-title-row {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 14.5px;
-      font-weight: 600;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-price {
-      color: var(--vd-text-color, #111827);
-    }
-
-    #vd-widget-{{ block.id }} .vd-highlight-text {
-      color: var(--vd-accent, #eab308);
+    #vd-widget-{{ block.id }} .vd-tier-title {
+      font-size: 18px;
       font-weight: 700;
+      color: #111827;
+      line-height: 1.2;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-badge {
-      font-size: 13px;
-      letter-spacing: -0.2px;
-    }
-
-    #vd-widget-{{ block.id }} .vd-info-section {
-      text-align: center;
-      margin: 28px 0 16px;
-    }
-
-    #vd-widget-{{ block.id }} .vd-info-title {
-      font-size: 14.5px;
+    #vd-widget-{{ block.id }} .vd-save-pill {
+      background-color: #fef3c7;
+      color: #92400e;
+      font-size: 11.5px;
       font-weight: 700;
-      color: var(--vd-text-color, #111827);
-      margin: 0 0 5px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
 
-    #vd-widget-{{ block.id }} .vd-info-subtitle {
+    #vd-widget-{{ block.id }} .vd-tier-subtitle {
       font-size: 13px;
       color: #6b7280;
-      margin: 0;
+      margin-top: 3px;
     }
 
-    #vd-widget-{{ block.id }} .vd-action-wrapper {
-      margin-top: 14px;
+    /* Right Side: Price */
+    #vd-widget-{{ block.id }} .vd-tier-right {
+      text-align: right;
     }
 
-    #vd-widget-{{ block.id }} .vd-btn {
+    #vd-widget-{{ block.id }} .vd-final-price {
+      font-size: 20px;
+      font-weight: 800;
+      color: #111827;
+      line-height: 1.2;
+    }
+
+    #vd-widget-{{ block.id }} .vd-strikethrough-price {
+      font-size: 13px;
+      color: #9ca3af;
+      text-decoration: line-through;
+      margin-top: 2px;
+    }
+
+    /* Action Button */
+    #vd-widget-{{ block.id }} .vd-btn-wrap {
+      margin-top: 16px;
+    }
+
+    #vd-widget-{{ block.id }} .vd-action-btn {
       width: 100%;
-      background: var(--vd-btn-bg, #111827);
-      color: var(--vd-btn-text, #ffffff);
+      background: #111827;
+      color: #ffffff;
       border: none;
       border-radius: 8px;
-      padding: 13px 20px;
+      padding: 14px 20px;
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
       transition: all 0.2s ease;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
     }
 
-    #vd-widget-{{ block.id }} .vd-btn:hover {
-      opacity: 0.93;
+    #vd-widget-{{ block.id }} .vd-action-btn:hover {
+      opacity: 0.92;
       transform: translateY(-1px);
-    }
-
-    #vd-widget-{{ block.id }} .vd-btn:active {
-      transform: translateY(0);
     }
 
     #vd-widget-{{ block.id }} .vd-feedback {
@@ -432,13 +415,12 @@
       const container = document.getElementById('vd-widget-{{ block.id }}');
       if (!container) return;
 
-      const tiers = container.querySelectorAll('.vd-tier-item');
+      const tiers = container.querySelectorAll('.vd-tier-row');
       const actionBtn = document.getElementById('vd-btn-{{ block.id }}');
       const feedbackEl = document.getElementById('vd-feedback-{{ block.id }}');
       let currentVariantId = "{{ current_variant.id }}";
       let basePrice = {{ base_price }};
 
-      // Helper: Format Money
       function formatMoney(cents) {
         return (cents / 100).toLocaleString(undefined, {
           style: 'currency',
@@ -446,7 +428,6 @@
         });
       }
 
-      // Synchronize with standard theme quantity input if present
       function syncThemeQuantity(qty) {
         const productForm = container.closest('form[action*="/cart/add"]') || document.querySelector('form[action*="/cart/add"]');
         if (productForm) {
@@ -458,7 +439,6 @@
         }
       }
 
-      // Select Tier Handler
       function selectTier(item) {
         tiers.forEach(t => {
           t.classList.remove('is-selected');
@@ -485,13 +465,13 @@
       });
 
       // Initial sync with default selected tier
-      const initiallySelected = container.querySelector('.vd-tier-item.is-selected') || tiers[0];
+      const initiallySelected = container.querySelector('.vd-tier-row.is-selected') || tiers[0];
       if (initiallySelected) {
         const initQty = parseInt(initiallySelected.getAttribute('data-qty') || '1', 10);
         syncThemeQuantity(initQty);
       }
 
-      // Listen for variant changes from theme (Dawn and modern themes dispatch variant change events or form change)
+      // Dynamic Price update on variant changes
       document.addEventListener('variant:change', function(evt) {
         if (evt.detail && evt.detail.variant) {
           currentVariantId = evt.detail.variant.id;
@@ -500,7 +480,6 @@
         }
       });
 
-      // Also listen on standard variant radio/select changes
       const form = document.querySelector('form[action*="/cart/add"]');
       if (form) {
         form.addEventListener('change', function(e) {
@@ -515,19 +494,32 @@
           const tierNum = item.getAttribute('data-tier');
           const qty = parseInt(item.getAttribute('data-qty') || '1', 10);
           const discount = parseInt(item.getAttribute('data-discount') || '0', 10);
-          const priceEl = item.querySelector('[data-tier-price="' + tierNum + '"]');
-          if (priceEl) {
-            const rawTotal = basePrice * qty;
-            const discountedTotal = rawTotal - (rawTotal * (discount / 100));
-            priceEl.textContent = formatMoney(discountedTotal);
+          
+          const rawCents = basePrice * qty;
+          const savedCents = rawCents * (discount / 100);
+          const finalCents = rawCents - savedCents;
+
+          const finalPriceEl = item.querySelector('[data-final-price="' + tierNum + '"]');
+          if (finalPriceEl) {
+            finalPriceEl.textContent = formatMoney(finalCents);
+          }
+
+          const rawPriceEl = item.querySelector('[data-raw-price="' + tierNum + '"]');
+          if (rawPriceEl) {
+            rawPriceEl.textContent = formatMoney(rawCents);
+          }
+
+          const savePillEl = item.querySelector('[data-save-pill="' + tierNum + '"]');
+          if (savePillEl && discount > 0) {
+            savePillEl.textContent = 'SAVE ' + formatMoney(savedCents);
           }
         });
       }
 
-      // Handle Action Button Click (Add to Cart)
+      // Add to cart action
       if (actionBtn) {
         actionBtn.addEventListener('click', async function() {
-          const selected = container.querySelector('.vd-tier-item.is-selected');
+          const selected = container.querySelector('.vd-tier-row.is-selected');
           if (!selected) return;
 
           const qty = parseInt(selected.getAttribute('data-qty') || '1', 10);
@@ -565,13 +557,12 @@
             if (response.ok) {
               if (feedbackEl) {
                 feedbackEl.className = 'vd-feedback success';
-                feedbackEl.textContent = '🎉 Successfully added ' + qty + ' item(s) to your cart!';
+                feedbackEl.textContent = '🎉 Added to cart!';
                 feedbackEl.style.display = 'block';
               }
-              // Redirect to cart or trigger cart refresh after brief delay
               setTimeout(function() {
                 window.location.href = '/cart';
-              }, 600);
+              }, 500);
             } else {
               const err = await response.json();
               throw new Error(err.description || 'Could not add to cart.');
@@ -604,11 +595,6 @@
       "label": "Heading"
     },
     {
-      "type": "text",
-      "id": "header_subtitle",
-      "label": "Subheading"
-    },
-    {
       "type": "number",
       "id": "tier_1_qty",
       "label": "Tier 1: Quantity",
@@ -618,7 +604,7 @@
       "type": "text",
       "id": "tier_1_title",
       "label": "Tier 1: Title",
-      "default": "Buy 1 (Single)"
+      "default": "Single"
     },
     {
       "type": "range",
@@ -631,11 +617,6 @@
       "default": 0
     },
     {
-      "type": "text",
-      "id": "tier_1_badge",
-      "label": "Tier 1: Right Label / Badge"
-    },
-    {
       "type": "number",
       "id": "tier_2_qty",
       "label": "Tier 2: Quantity",
@@ -645,7 +626,7 @@
       "type": "text",
       "id": "tier_2_title",
       "label": "Tier 2: Title",
-      "default": "Buy 2 (Duo Pack)"
+      "default": "Duo"
     },
     {
       "type": "range",
@@ -655,41 +636,7 @@
       "step": 1,
       "unit": "%",
       "label": "Tier 2: Discount",
-      "default": 10
-    },
-    {
-      "type": "text",
-      "id": "tier_2_badge",
-      "label": "Tier 2: Right Label / Badge",
-      "default": "Save 10%"
-    },
-    {
-      "type": "number",
-      "id": "tier_3_qty",
-      "label": "Tier 3: Quantity",
-      "default": 3
-    },
-    {
-      "type": "text",
-      "id": "tier_3_title",
-      "label": "Tier 3: Title",
-      "default": "Buy 3 (Trio Pack)"
-    },
-    {
-      "type": "range",
-      "id": "tier_3_discount",
-      "min": 0,
-      "max": 80,
-      "step": 1,
-      "unit": "%",
-      "label": "Tier 3: Discount",
-      "default": 20
-    },
-    {
-      "type": "text",
-      "id": "tier_3_badge",
-      "label": "Tier 3: Right Label / Badge",
-      "default": "Save 20%"
+      "default": 15
     },
     {
       "type": "select",
@@ -697,27 +644,14 @@
       "label": "Default Selected Tier",
       "options": [
         { "value": "1", "label": "Tier 1" },
-        { "value": "2", "label": "Tier 2" },
-        { "value": "3", "label": "Tier 3" }
+        { "value": "2", "label": "Tier 2" }
       ],
       "default": "2"
     },
     {
-      "type": "text",
-      "id": "footer_heading",
-      "label": "Footer Title",
-      "default": "Quantity breaks for same product"
-    },
-    {
-      "type": "text",
-      "id": "footer_subheading",
-      "label": "Footer Subtitle",
-      "default": "Single, Duo, Trio volume tiers"
-    },
-    {
       "type": "checkbox",
       "id": "show_button",
-      "label": "Show 'Choose' / 'Add to Cart' Button",
+      "label": "Show 'Add to Cart' Button",
       "default": true
     },
     {
@@ -729,38 +663,8 @@
     {
       "type": "color",
       "id": "accent_color",
-      "label": "Active Tier / Accent Color",
-      "default": "#eab308"
-    },
-    {
-      "type": "color",
-      "id": "card_bg",
-      "label": "Card Background",
-      "default": "#ffffff"
-    },
-    {
-      "type": "color",
-      "id": "border_color",
-      "label": "Border Color",
-      "default": "#e5e7eb"
-    },
-    {
-      "type": "color",
-      "id": "text_color",
-      "label": "Text Color",
-      "default": "#111827"
-    },
-    {
-      "type": "color",
-      "id": "btn_bg",
-      "label": "Button Background",
-      "default": "#111827"
-    },
-    {
-      "type": "color",
-      "id": "btn_text_color",
-      "label": "Button Text Color",
-      "default": "#ffffff"
+      "label": "Active Accent Color",
+      "default": "#f59e0b"
     }
   ]
 }
