@@ -16,75 +16,7 @@ export const loader = async ({ request }) => {
         });
     }
 
-    // Collections query
-    let storeCollections = [];
-    try {
-        const colRes = await admin.graphql(
-            `#graphql
-            query getCollections {
-                collections(first: 50) {
-                    edges {
-                        node {
-                            id
-                            title
-                            handle
-                            productsCount {
-                                count
-                            }
-                        }
-                    }
-                }
-            }`
-        );
-        const colJson = await colRes.json();
-        storeCollections = colJson.data?.collections?.edges?.map((e) => ({
-            id: e.node.id,
-            title: e.node.title,
-            handle: e.node.handle,
-            count: e.node.productsCount?.count || 0,
-        })) || [];
-    } catch (e) {
-        console.error("Collections fetch error:", e);
-    }
-
-    // Products query
-    let storeProducts = [];
-    try {
-        const prodRes = await admin.graphql(
-            `#graphql
-            query getProducts {
-                products(first: 50) {
-                    edges {
-                        node {
-                            id
-                            title
-                            featuredImage {
-                                url
-                            }
-                            variants(first: 1) {
-                                edges {
-                                    node {
-                                        price
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }`
-        );
-        const prodJson = await prodRes.json();
-        storeProducts = prodJson.data?.products?.edges?.map((e) => ({
-            id: e.node.id,
-            title: e.node.title,
-            imageUrl: e.node.featuredImage?.url || "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png",
-            price: parseFloat(e.node.variants?.edges[0]?.node?.price || "100.00"),
-        })) || [];
-    } catch (e) {
-        console.error("Products fetch error:", e);
-    }
-
-    return { existingBundle, storeProducts, storeCollections };
+    return { existingBundle };
 };
 
 // ২. Action: ডাটাবেসে সেভ করবে এবং শপিফাই মেটাফিল্ডে টার্গেটিং সহ পাবলিশ করবে
@@ -198,7 +130,7 @@ export const action = async ({ request }) => {
 };
 
 export default function VolumeDiscountBuilder() {
-    const { existingBundle, storeProducts, storeCollections } = useLoaderData();
+    const { existingBundle } = useLoaderData();
     const [searchParams] = useSearchParams();
     const submit = useSubmit();
     const navigate = useNavigate();
@@ -223,11 +155,6 @@ export default function VolumeDiscountBuilder() {
     const [appliesTo, setAppliesTo] = useState(parsedInitial?.appliesTo || "all");
     const [selectedProducts, setSelectedProducts] = useState(parsedInitial?.selectedProducts || []);
     const [selectedCollections, setSelectedCollections] = useState(parsedInitial?.selectedCollections || []);
-
-    // Fallback Picker Modals state (in case App Bridge resourcePicker is offline)
-    const [showProductModal, setShowProductModal] = useState(false);
-    const [showCollectionModal, setShowCollectionModal] = useState(false);
-    const [searchTerm, setSearchTerm] = useState("");
 
     // Interactive preview selected tier state
     const [previewSelectedTier, setPreviewSelectedTier] = useState(defaultTier);
@@ -304,7 +231,7 @@ export default function VolumeDiscountBuilder() {
         }
     };
 
-    // Open Product Picker (Native App Bridge with Fallback)
+    // Open Product Picker (Native Shopify App Bridge Only)
     const handleOpenProductPicker = async () => {
         if (typeof window !== "undefined" && window.shopify?.resourcePicker) {
             try {
@@ -313,7 +240,7 @@ export default function VolumeDiscountBuilder() {
                     multiple: true,
                     selectionIds: selectedProducts.map((p) => ({ id: p.id })),
                 });
-                if (selected && selected.length > 0) {
+                if (selected && Array.isArray(selected) && selected.length > 0) {
                     const mapped = selected.map((p) => ({
                         id: p.id,
                         title: p.title,
@@ -321,16 +248,14 @@ export default function VolumeDiscountBuilder() {
                         price: parseFloat(p.variants?.[0]?.price || "100.00"),
                     }));
                     setSelectedProducts(mapped);
-                    return;
                 }
             } catch (err) {
-                console.log("App Bridge resourcePicker fallback to modal:", err);
+                // User cancelled or closed modal - do nothing
             }
         }
-        setShowProductModal(true);
     };
 
-    // Open Collection Picker (Native App Bridge with Fallback)
+    // Open Collection Picker (Native Shopify App Bridge Only)
     const handleOpenCollectionPicker = async () => {
         if (typeof window !== "undefined" && window.shopify?.resourcePicker) {
             try {
@@ -339,7 +264,7 @@ export default function VolumeDiscountBuilder() {
                     multiple: true,
                     selectionIds: selectedCollections.map((c) => ({ id: c.id })),
                 });
-                if (selected && selected.length > 0) {
+                if (selected && Array.isArray(selected) && selected.length > 0) {
                     const mapped = selected.map((c) => ({
                         id: c.id,
                         title: c.title,
@@ -347,13 +272,11 @@ export default function VolumeDiscountBuilder() {
                         count: c.productsCount?.count || 0,
                     }));
                     setSelectedCollections(mapped);
-                    return;
                 }
             } catch (err) {
-                console.log("App Bridge resourcePicker fallback to modal:", err);
+                // User cancelled or closed modal - do nothing
             }
         }
-        setShowCollectionModal(true);
     };
 
     // Remove single product
@@ -1030,126 +953,6 @@ export default function VolumeDiscountBuilder() {
                 </div>
 
             </div>
-
-            {/* Fallback Product Selection Modal */}
-            {showProductModal && (
-                <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
-                    <div style={{ backgroundColor: "#fff", width: "500px", maxWidth: "90%", borderRadius: "12px", padding: "20px", maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-                            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700" }}>Select Products</h3>
-                            <button type="button" onClick={() => setShowProductModal(false)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: "16px" }}>✕</button>
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Search products..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #d1d5db", marginBottom: "12px", fontSize: "13px" }}
-                        />
-                        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
-                            {storeProducts.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase())).map((p) => {
-                                const isChecked = selectedProducts.some((sp) => sp.id === p.id);
-                                return (
-                                    <label
-                                        key={p.id}
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: "10px",
-                                            padding: "8px 10px",
-                                            borderRadius: "6px",
-                                            cursor: "pointer",
-                                            backgroundColor: isChecked ? "#f0fdf4" : "#ffffff",
-                                            border: isChecked ? "1px solid #86efac" : "1px solid #e5e7eb",
-                                        }}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            onChange={() => {
-                                                if (isChecked) {
-                                                    setSelectedProducts(selectedProducts.filter((sp) => sp.id !== p.id));
-                                                } else {
-                                                    setSelectedProducts([...selectedProducts, p]);
-                                                }
-                                            }}
-                                        />
-                                        {p.imageUrl && (
-                                            <img src={p.imageUrl} alt={p.title} style={{ width: "32px", height: "32px", borderRadius: "4px", objectFit: "cover" }} />
-                                        )}
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: "13px", fontWeight: "600" }}>{p.title}</div>
-                                            <div style={{ fontSize: "11px", color: "#6b7280" }}>${p.price.toFixed(2)}</div>
-                                        </div>
-                                    </label>
-                                );
-                            })}
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setShowProductModal(false)}
-                            style={{ marginTop: "14px", padding: "10px", backgroundColor: "#111827", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer" }}
-                        >
-                            Done ({selectedProducts.length} selected)
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Fallback Collection Selection Modal */}
-            {showCollectionModal && (
-                <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
-                    <div style={{ backgroundColor: "#fff", width: "500px", maxWidth: "90%", borderRadius: "12px", padding: "20px", maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-                            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700" }}>Select Collections</h3>
-                            <button type="button" onClick={() => setShowCollectionModal(false)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: "16px" }}>✕</button>
-                        </div>
-                        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
-                            {storeCollections.map((c) => {
-                                const isChecked = selectedCollections.some((sc) => sc.id === c.id);
-                                return (
-                                    <label
-                                        key={c.id}
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: "10px",
-                                            padding: "8px 10px",
-                                            borderRadius: "6px",
-                                            cursor: "pointer",
-                                            backgroundColor: isChecked ? "#f0fdf4" : "#ffffff",
-                                            border: isChecked ? "1px solid #86efac" : "1px solid #e5e7eb",
-                                        }}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            onChange={() => {
-                                                if (isChecked) {
-                                                    setSelectedCollections(selectedCollections.filter((sc) => sc.id !== c.id));
-                                                } else {
-                                                    setSelectedCollections([...selectedCollections, c]);
-                                                }
-                                            }}
-                                        />
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: "13px", fontWeight: "600" }}>📁 {c.title}</div>
-                                            <div style={{ fontSize: "11px", color: "#6b7280" }}>{c.count} products</div>
-                                        </div>
-                                    </label>
-                                );
-                            })}
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setShowCollectionModal(false)}
-                            style={{ marginTop: "14px", padding: "10px", backgroundColor: "#111827", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", cursor: "pointer" }}
-                        >
-                            Done ({selectedCollections.length} selected)
-                        </button>
-                    </div>
-                </div>
-            )}
 
         </s-page>
     );
