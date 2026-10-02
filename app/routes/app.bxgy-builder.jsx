@@ -112,6 +112,13 @@ export const action = async ({ request }) => {
                 type: "json",
                 value: metafieldVal,
             });
+            metafields.push({
+                ownerId: shopId,
+                namespace: "smart_bundles",
+                key: "active_bxgy",
+                type: "json",
+                value: metafieldVal,
+            });
         }
 
         if (metafields.length > 0) {
