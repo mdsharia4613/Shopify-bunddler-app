@@ -1,0 +1,591 @@
+{% comment %}
+  Buy X, Get Y (BXGY) Deal App Block
+  - Exact clean matching design from BXGY Deal Template
+  - Syncs with theme default ADD TO CART button
+  - Real-time API & Metafield dynamic tier hydration
+{% endcomment %}
+
+{% if product %}
+  {% assign bxgy_meta = app.metafields.smart_bundles.active_bxgy.value %}
+
+  {% assign is_eligible = false %}
+  {% if bxgy_meta == blank %}
+    {% assign is_eligible = true %}
+  {% elsif bxgy_meta.active == false %}
+    {% assign is_eligible = false %}
+  {% elsif bxgy_meta.appliesTo == blank or bxgy_meta.appliesTo == 'all' %}
+    {% assign is_eligible = true %}
+  {% elsif bxgy_meta.appliesTo == 'products' %}
+    {% assign current_pid = product.id | append: "" %}
+    {% for pid in bxgy_meta.selectedProductIds %}
+      {% assign clean_pid = pid | split: "/" | last %}
+      {% if clean_pid == current_pid %}
+        {% assign is_eligible = true %}
+        {% break %}
+      {% endif %}
+    {% endfor %}
+  {% elsif bxgy_meta.appliesTo == 'collections' %}
+    {% for col in product.collections %}
+      {% assign current_cid = col.id | append: "" %}
+      {% for cid in bxgy_meta.selectedCollectionIds %}
+        {% assign clean_cid = cid | split: "/" | last %}
+        {% if clean_cid == current_cid %}
+          {% assign is_eligible = true %}
+          {% break %}
+        {% endif %}
+      {% endfor %}
+      {% if is_eligible %}{% break %}{% endif %}
+    {% endfor %}
+  {% endif %}
+
+{% if is_eligible %}
+  {% assign current_variant = product.selected_or_first_available_variant %}
+  {% assign base_price = current_variant.price %}
+
+  {% assign display_accent = block.settings.accent_color | default: "#10b981" %}
+  {% assign display_header_title = block.settings.header_title %}
+
+  {% if bxgy_meta %}
+    {% if bxgy_meta.accentColor != blank %}
+      {% assign display_accent = bxgy_meta.accentColor %}
+    {% endif %}
+    {% if bxgy_meta.headerTitle != blank %}
+      {% assign display_header_title = bxgy_meta.headerTitle %}
+    {% endif %}
+  {% endif %}
+
+  <div 
+    class="bxgy-widget-container" 
+    id="bxgy-widget-{{ block.id }}"
+    data-block-id="{{ block.id }}"
+    data-product-id="{{ product.id }}"
+    data-variant-id="{{ current_variant.id }}"
+    data-base-price="{{ base_price }}"
+    data-currency="{{ cart.currency.symbol }}"
+    style="
+      --bxgy-accent: {{ display_accent }};
+    "
+  >
+    <div class="bxgy-card-wrap">
+      {% if display_header_title != blank %}
+        <h3 class="bxgy-main-title">{{ display_header_title }}</h3>
+      {% endif %}
+
+      <!-- Tiers List -->
+      <div class="bxgy-tiers-list" role="radiogroup" aria-label="Buy X Get Y Tiers">
+
+        {% if bxgy_meta != blank and bxgy_meta.tiers != blank and bxgy_meta.tiers.size > 0 %}
+          {% for tier in bxgy_meta.tiers %}
+            {% assign tier_idx = forloop.index %}
+            {% assign is_selected = false %}
+            {% if bxgy_meta.defaultTier == tier_idx %}
+              {% assign is_selected = true %}
+            {% elsif bxgy_meta.defaultTier == blank and forloop.first %}
+              {% assign is_selected = true %}
+            {% endif %}
+
+            {% assign total_qty = tier.totalQty | default: tier.qty | plus: 0 %}
+            {% if total_qty < 1 %}
+              {% assign total_qty = tier.buyQty | plus: tier.getQty %}
+            {% endif %}
+
+            {% assign raw_cents = base_price | times: total_qty %}
+            {% assign disc_pct = tier.discount | plus: 0 %}
+            {% assign disc_cents = raw_cents | times: disc_pct | divided_by: 100 %}
+            {% assign final_cents = raw_cents | minus: disc_cents %}
+
+            <div class="bxgy-tier-card {% if is_selected %}is-selected{% endif %}" data-tier-card="{{ tier_idx }}">
+              <div 
+                class="bxgy-tier-row {% if is_selected %}is-selected{% endif %}"
+                data-tier="{{ tier_idx }}"
+                data-qty="{{ total_qty }}"
+                data-buy-qty="{{ tier.buyQty | default: 1 }}"
+                data-get-qty="{{ tier.getQty | default: 1 }}"
+                data-discount="{{ disc_pct }}"
+                data-title="{{ tier.title }}"
+                tabindex="0"
+                role="radio"
+                aria-checked="{% if is_selected %}true{% else %}false{% endif %}"
+              >
+                {% if tier.popularBadge != blank %}
+                  <div class="bxgy-popular-badge">
+                    <span>✨</span>
+                    <span>{{ tier.popularBadge }}</span>
+                  </div>
+                {% endif %}
+
+                <div class="bxgy-tier-left">
+                  <span class="bxgy-radio-dot"></span>
+                  <div class="bxgy-tier-info">
+                    <span class="bxgy-tier-title">{{ tier.title }}</span>
+                    <span class="bxgy-tier-subtext">{{ tier.buyQty }} Paid + {{ tier.getQty }} Free</span>
+                  </div>
+                </div>
+
+                <div class="bxgy-tier-right">
+                  {% if tier.saveTag != blank %}
+                    <span class="bxgy-save-tag">{{ tier.saveTag }}</span>
+                  {% elsif disc_pct > 0 %}
+                    <span class="bxgy-save-tag">SAVE {{ disc_pct }}%</span>
+                  {% endif %}
+                  <div class="bxgy-final-price" data-final-price="{{ tier_idx }}">
+                    {{ final_cents | money }}
+                  </div>
+                  <div class="bxgy-raw-price" data-raw-price="{{ tier_idx }}">
+                    {{ raw_cents | money }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+
+        {% else %}
+          {% comment %} Default 2 Tiers matching template image {% endcomment %}
+
+          <!-- Tier 1: Buy 1 Get 1 Free (Save 50%) -->
+          {% assign t1_raw = base_price | times: 2 %}
+          {% assign t1_final = t1_raw | times: 50 | divided_by: 100 %}
+          <div class="bxgy-tier-card is-selected" data-tier-card="1">
+            <div 
+              class="bxgy-tier-row is-selected"
+              data-tier="1"
+              data-qty="2"
+              data-buy-qty="1"
+              data-get-qty="1"
+              data-discount="50"
+              data-title="Buy 1 Get 1 Free"
+              tabindex="0"
+              role="radio"
+              aria-checked="true"
+            >
+              <div class="bxgy-popular-badge">
+                <span>✨</span>
+                <span>Best Value</span>
+              </div>
+              <div class="bxgy-tier-left">
+                <span class="bxgy-radio-dot"></span>
+                <div class="bxgy-tier-info">
+                  <span class="bxgy-tier-title">Buy 1 Get 1 Free</span>
+                  <span class="bxgy-tier-subtext">1 Paid + 1 Free</span>
+                </div>
+              </div>
+              <div class="bxgy-tier-right">
+                <span class="bxgy-save-tag">SAVE 50%</span>
+                <div class="bxgy-final-price" data-final-price="1">{{ t1_final | money }}</div>
+                <div class="bxgy-raw-price" data-raw-price="1">{{ t1_raw | money }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tier 2: Buy 2 Get 3 Free (Save 60%) -->
+          {% assign t2_raw = base_price | times: 5 %}
+          {% assign t2_disc = t2_raw | times: 60 | divided_by: 100 %}
+          {% assign t2_final = t2_raw | minus: t2_disc %}
+          <div class="bxgy-tier-card" data-tier-card="2">
+            <div 
+              class="bxgy-tier-row"
+              data-tier="2"
+              data-qty="5"
+              data-buy-qty="2"
+              data-get-qty="3"
+              data-discount="60"
+              data-title="Buy 2 Get 3 Free"
+              tabindex="0"
+              role="radio"
+              aria-checked="false"
+            >
+              <div class="bxgy-tier-left">
+                <span class="bxgy-radio-dot"></span>
+                <div class="bxgy-tier-info">
+                  <span class="bxgy-tier-title">Buy 2 Get 3 Free</span>
+                  <span class="bxgy-tier-subtext">2 Paid + 3 Free</span>
+                </div>
+              </div>
+              <div class="bxgy-tier-right">
+                <span class="bxgy-save-tag">SAVE 60%</span>
+                <div class="bxgy-final-price" data-final-price="2">{{ t2_final | money }}</div>
+                <div class="bxgy-raw-price" data-raw-price="2">{{ t2_raw | money }}</div>
+              </div>
+            </div>
+          </div>
+
+        {% endif %}
+
+      </div>
+
+    </div>
+  </div>
+
+  <style>
+    #bxgy-widget-{{ block.id }} {
+      margin: 18px 0;
+      width: 100%;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+    #bxgy-widget-{{ block.id }} * {
+      box-sizing: border-box;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-main-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0 0 12px 0;
+      color: #111827;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tiers-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tier-card {
+      position: relative;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tier-row {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+      outline: none;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tier-row:hover {
+      border-color: var(--bxgy-accent, #10b981);
+      transform: translateY(-1px);
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tier-row.is-selected {
+      background: #f0fdf4;
+      border: 2px solid var(--bxgy-accent, #10b981);
+      box-shadow: 0 0 0 1px var(--bxgy-accent, #10b981);
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-popular-badge {
+      position: absolute;
+      top: -11px;
+      right: 14px;
+      background-color: var(--bxgy-accent, #10b981);
+      color: #ffffff;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+      z-index: 2;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tier-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-radio-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      background: #ffffff;
+      transition: all 0.2s ease;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tier-row.is-selected .bxgy-radio-dot {
+      border: 2px solid var(--bxgy-accent, #10b981);
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tier-row.is-selected .bxgy-radio-dot::after {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--bxgy-accent, #10b981);
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tier-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tier-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+      line-height: 1.2;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tier-subtext {
+      font-size: 12px;
+      color: #64748b;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-tier-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-save-tag {
+      color: var(--bxgy-accent, #10b981);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-final-price {
+      font-size: 17px;
+      font-weight: 800;
+      color: #111827;
+    }
+    #bxgy-widget-{{ block.id }} .bxgy-raw-price {
+      font-size: 12px;
+      color: #9ca3af;
+      text-decoration: line-through;
+    }
+  </style>
+
+  <script>
+    (function() {
+      const container = document.getElementById('bxgy-widget-{{ block.id }}');
+      if (!container) return;
+
+      const blockId = container.getAttribute('data-block-id');
+      const productId = container.getAttribute('data-product-id');
+      let currentVariantId = container.getAttribute('data-variant-id');
+      let basePrice = parseInt(container.getAttribute('data-base-price'), 10);
+      const currency = container.getAttribute('data-currency') || '$';
+
+      const currentProductTitle = {{ product.title | json }};
+      let currentProductImage = {{ product.featured_image | image_url: width: 300 | json }};
+
+      function formatMoney(cents) {
+        return currency + (cents / 100).toFixed(2);
+      }
+
+      function syncThemeQuantity(qty) {
+        const qtyInputs = document.querySelectorAll('input[name="quantity"], input.quantity__input, [data-quantity-input]');
+        qtyInputs.forEach(qtyInput => {
+          if (qtyInput) {
+            qtyInput.value = qty;
+            qtyInput.dispatchEvent(new Event('change', { bubbles: true }));
+            qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        });
+      }
+
+      function bindTierEvents() {
+        const tiers = container.querySelectorAll('.bxgy-tier-row');
+        tiers.forEach(item => {
+          item.onclick = function() {
+            selectTier(this);
+          };
+          item.onkeydown = function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              selectTier(this);
+            }
+          };
+        });
+      }
+
+      function selectTier(item, skipQtySync) {
+        const tiers = container.querySelectorAll('.bxgy-tier-row');
+        tiers.forEach(t => {
+          t.classList.remove('is-selected');
+          t.setAttribute('aria-checked', 'false');
+          const card = t.closest('.bxgy-tier-card');
+          if (card) card.classList.remove('is-selected');
+        });
+
+        item.classList.add('is-selected');
+        item.setAttribute('aria-checked', 'true');
+        const activeCard = item.closest('.bxgy-tier-card');
+        if (activeCard) activeCard.classList.add('is-selected');
+
+        const qty = parseInt(item.getAttribute('data-qty') || '2', 10);
+        if (!skipQtySync) {
+          syncThemeQuantity(qty);
+        }
+      }
+
+      bindTierEvents();
+
+      const initiallySelected = container.querySelector('.bxgy-tier-row.is-selected') || container.querySelector('.bxgy-tier-row');
+      if (initiallySelected) {
+        selectTier(initiallySelected);
+      }
+
+      // Dynamic Price update on variant changes
+      document.addEventListener('variant:change', function(evt) {
+        if (evt.detail && evt.detail.variant) {
+          currentVariantId = evt.detail.variant.id;
+          basePrice = evt.detail.variant.price;
+          if (evt.detail.variant.featured_image && evt.detail.variant.featured_image.src) {
+            currentProductImage = evt.detail.variant.featured_image.src;
+          }
+          updateTierPrices();
+        }
+      });
+
+      function updateTierPrices() {
+        const tiers = container.querySelectorAll('.bxgy-tier-row');
+        tiers.forEach(item => {
+          const tierNum = item.getAttribute('data-tier');
+          const qty = parseInt(item.getAttribute('data-qty') || '2', 10);
+          const discount = parseInt(item.getAttribute('data-discount') || '50', 10);
+          
+          const rawCents = basePrice * qty;
+          const savedCents = rawCents * (discount / 100);
+          const finalCents = rawCents - savedCents;
+
+          const finalPriceEl = item.querySelector('[data-final-price="' + tierNum + '"]');
+          if (finalPriceEl) finalPriceEl.textContent = formatMoney(finalCents);
+
+          const rawPriceEl = item.querySelector('[data-raw-price="' + tierNum + '"]');
+          if (rawPriceEl) rawPriceEl.textContent = formatMoney(rawCents);
+        });
+      }
+
+      // Add to cart execution synced with Shopify's default Add to Cart button
+      let isSubmitting = false;
+
+      async function handleBxgyAddToCart(triggerBtn) {
+        if (isSubmitting) return;
+
+        const selected = container.querySelector('.bxgy-tier-row.is-selected');
+        if (!selected) return;
+
+        const qty = parseInt(selected.getAttribute('data-qty') || '2', 10);
+        const buyQty = parseInt(selected.getAttribute('data-buy-qty') || '1', 10);
+        const getQty = parseInt(selected.getAttribute('data-get-qty') || '1', 10);
+        const discount = parseFloat(selected.getAttribute('data-discount') || '50');
+        const tierTitle = selected.getAttribute('data-title') || 'Buy X Get Y Deal';
+
+        isSubmitting = true;
+
+        const themeBtn = triggerBtn || document.querySelector('form[action*="/cart/add"] button[type="submit"], form[action*="/cart/add"] [name="add"], .product-form__submit');
+        let originalBtnHtml = '';
+        if (themeBtn) {
+          originalBtnHtml = themeBtn.innerHTML;
+          themeBtn.setAttribute('aria-disabled', 'true');
+          themeBtn.disabled = true;
+          themeBtn.classList.add('loading');
+          const btnSpan = themeBtn.querySelector('span:not(.loader)') || themeBtn;
+          if (btnSpan && btnSpan.textContent) {
+            btnSpan.textContent = 'Adding deal...';
+          }
+        }
+
+        try {
+          const rawCents = basePrice * qty;
+          const savedCents = Math.round(rawCents * (discount / 100));
+          const finalCents = rawCents - savedCents;
+
+          const bundleGroupId = 'bxgy_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+
+          const items = [{
+            id: parseInt(currentVariantId, 10),
+            quantity: qty,
+            properties: {
+              '_bundle': 'Buy X Get Y',
+              '_bundle_type': 'bxgy',
+              '_bundle_group': bundleGroupId,
+              '_bundle_title': currentProductTitle + ' (' + tierTitle + ')',
+              '_bundle_components': currentProductTitle + ' x ' + qty + ' (' + buyQty + ' Paid + ' + getQty + ' Free)',
+              '_bundle_discount': discount + '%',
+              '_bundle_discount_num': discount.toString(),
+              '_bundle_original_cents': rawCents.toString(),
+              '_bundle_discounted_cents': finalCents.toString(),
+              '_bundle_image': currentProductImage || '',
+              '_volume_tier': tierTitle
+            }
+          }];
+
+          const response = await fetch('/cart/add.js', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ items })
+          });
+
+          if (response.ok) {
+            setTimeout(function() {
+              window.location.href = '/cart';
+            }, 300);
+          } else {
+            const err = await response.json();
+            throw new Error(err.description || 'Could not add deal to cart.');
+          }
+        } catch (err) {
+          isSubmitting = false;
+          if (themeBtn) {
+            themeBtn.removeAttribute('aria-disabled');
+            themeBtn.disabled = false;
+            themeBtn.classList.remove('loading');
+            if (originalBtnHtml) themeBtn.innerHTML = originalBtnHtml;
+          }
+          alert(err.message || 'Error adding deal.');
+        }
+      }
+
+      function interceptDefaultAddToCart() {
+        document.addEventListener('submit', function(e) {
+          const form = e.target.closest('form[action*="/cart/add"]');
+          if (!form) return;
+
+          const selected = container.querySelector('.bxgy-tier-row.is-selected');
+          if (!selected) return;
+
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          const btn = form.querySelector('button[type="submit"], [name="add"], .product-form__submit');
+          handleBxgyAddToCart(btn);
+          return false;
+        }, true);
+
+        document.addEventListener('click', function(e) {
+          const btn = e.target.closest('button[type="submit"][name="add"], .product-form__submit, [name="add"], button[name="add"], .btn--add-to-cart');
+          if (!btn) return;
+
+          const selected = container.querySelector('.bxgy-tier-row.is-selected');
+          if (!selected) return;
+
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          handleBxgyAddToCart(btn);
+          return false;
+        }, true);
+      }
+
+      interceptDefaultAddToCart();
+
+    })();
+  </script>
+  {% endif %}
+{% endif %}
+
+{% schema %}
+{
+  "name": "Buy X Get Y Deal",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "header_title",
+      "label": "Heading",
+      "default": "Buy X, Get Y Special Deals"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Active Accent Color",
+      "default": "#10b981"
+    }
+  ]
+}
+{% endschema %}

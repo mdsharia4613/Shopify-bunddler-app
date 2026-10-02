@@ -210,13 +210,15 @@
 
         // Extract bundle metadata
         const isVolume = props['_bundle_type'] === 'volume_discount';
+        const isBxgy = props['_bundle_type'] === 'bxgy';
+        const isDeal = isVolume || isBxgy;
         const discountNum = parseFloat(props['_bundle_discount_num'] || '15');
         const bundleTitle = props['_bundle_title'] || ('Bundle: ' + (props['_bundle_components'] || props['Includes'] || item.product_title));
         const bundleImage = props['_bundle_image'] || item.image || 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png';
-        const badgeLabel = discountNum + '% OFF BUNDLE';
-        const componentsLabel = isVolume ? 'Included in this tier:' : 'Included in this bundle:';
-        const removeLabel = isVolume ? 'Remove' : 'Remove Complete Bundle';
-        const qtyLabel = isVolume ? (props['_volume_tier'] ? ('1 ' + props['_volume_tier']) : '1 Tier') : '1 Bundle';
+        const badgeLabel = isBxgy ? (discountNum + '% OFF DEAL') : (discountNum + '% OFF BUNDLE');
+        const componentsLabel = isBxgy ? 'Included in this deal:' : isVolume ? 'Included in this tier:' : 'Included in this bundle:';
+        const removeLabel = isDeal ? 'Remove' : 'Remove Complete Bundle';
+        const qtyLabel = isBxgy ? '1 Deal' : isVolume ? (props['_volume_tier'] ? ('1 ' + props['_volume_tier']) : '1 Tier') : '1 Bundle';
 
         // Extract components list for chips
         let components = [];

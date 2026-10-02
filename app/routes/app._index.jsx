@@ -410,7 +410,7 @@ export default function Dashboard() {
 
                           {/* Edit Bundle Button */}
                           <Link
-                            to={bundle.strategy === "Volume Discounts" ? `/app/volume-discount-builder?id=${bundle.id}` : `/app/bundle-builder?id=${bundle.id}`}
+                            to={bundle.strategy === "Volume Discounts" ? `/app/volume-discount-builder?id=${bundle.id}` : bundle.strategy === "Buy X Get Y" ? `/app/bxgy-builder?id=${bundle.id}` : `/app/bundle-builder?id=${bundle.id}`}
                             title="Edit bundle"
                             style={{
                               display: "inline-flex",
