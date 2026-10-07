@@ -45,16 +45,26 @@ export const loader = async ({ request }) => {
         `#graphql
         mutation createBundleDiscountApp($automaticAppDiscount: DiscountAutomaticAppInput!) {
           discountAutomaticAppCreate(automaticAppDiscount: $automaticAppDiscount) {
-            automaticDiscountNode { id }
+            automaticAppDiscount {
+              discountId
+              title
+              status
+            }
             userErrors { field message }
           }
         }`,
         {
           variables: {
             automaticAppDiscount: {
-              title: "Smart Multi-Collection Bundle 15% OFF",
+              title: "Smart Bundle Automatic Line Discount",
               functionId: discFn.id,
-              startsAt: new Date().toISOString()
+              startsAt: new Date().toISOString(),
+              discountClasses: ["PRODUCT"],
+              combinesWith: {
+                orderDiscounts: true,
+                productDiscounts: true,
+                shippingDiscounts: true
+              }
             }
           }
         }

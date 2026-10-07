@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "14df35738618881afb4a05e4681351f7"
-name = "smart-bundle-app"
+client_id = "c339d9b95496247253f183caaa830dd7"
+name = "Smart Bundle App"
 application_url = "https://shopify-bunddler-app.onrender.com"
 embedded = true
 
@@ -18,5 +18,7 @@ scopes = "write_metaobject_definitions,write_metaobjects,write_products,write_ca
 [auth]
 redirect_urls = [
   "https://shopify-bunddler-app.onrender.com/api/auth",
-  "https://shopify-bunddler-app.onrender.com/auth/callback"
+  "https://shopify-bunddler-app.onrender.com/auth/callback",
+  "https://shopify-bunddler-app.onrender.com/auth/shopify/callback",
+  "https://shopify-bunddler-app.onrender.com/api/auth/callback"
 ]
