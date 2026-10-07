@@ -198,15 +198,31 @@
       }
       if (rows.length === 0) return;
 
+      // Keep track of processed bundle groups to prevent duplicate cards
+      const seenBundleGroups = new Set();
+
       // Iterate through cart items and find bundle items
       cart.items.forEach((item, index) => {
         const props = item.properties || {};
-        const isBundle = props['_bundle_group'] || props['_bundle_title'] || props['Includes'] || item.title?.includes('Includes:');
+        const bundleGroupId = props['_bundle_group'];
+        const isBundle = bundleGroupId || props['_bundle_title'] || props['Includes'] || item.title?.includes('Includes:');
         if (!isBundle) return;
 
         const row = rows[index];
-        if (!row || row.classList.contains('sb-card-applied')) return;
+        if (!row) return;
+
+        // If this bundle group was already rendered on an earlier row, HIDE this secondary row!
+        if (bundleGroupId && seenBundleGroups.has(bundleGroupId)) {
+          row.style.setProperty('display', 'none', 'important');
+          return;
+        }
+
+        if (row.classList.contains('sb-card-applied')) return;
         row.classList.add('sb-card-applied');
+
+        if (bundleGroupId) {
+          seenBundleGroups.add(bundleGroupId);
+        }
 
         // Extract bundle metadata
         const isVolume = props['_bundle_type'] === 'volume_discount';
@@ -293,10 +309,22 @@
               e.preventDefault();
               e.stopPropagation();
               removeBtn.textContent = 'Removing bundle...';
-              await fetch('/cart/change.js', {
+
+              let updates = {};
+              if (bundleGroupId) {
+                cart.items.forEach(i => {
+                  if ((i.properties || {})['_bundle_group'] === bundleGroupId) {
+                    updates[i.key] = 0;
+                  }
+                });
+              } else {
+                updates[item.key] = 0;
+              }
+
+              await fetch('/cart/update.js', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: item.key, quantity: 0 })
+                body: JSON.stringify({ updates })
               });
               window.location.reload();
             });
