@@ -745,9 +745,6 @@
           });
 
           if (res.ok) {
-            if (discountCode) {
-              try { await fetch('/discount/' + encodeURIComponent(discountCode)); } catch(e) {}
-            }
 
             if (feedbackEl) {
               feedbackEl.className = 'smart-bundle-feedback success';

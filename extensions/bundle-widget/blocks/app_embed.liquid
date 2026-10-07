@@ -403,44 +403,17 @@
         });
       }
 
-      // Collect all unique bundle discount codes for checkout combination
-      const activeDiscountCodes = [];
-      cart.items.forEach((item) => {
-        const props = item.properties || {};
-        const code = props["_bundle_discount_code"];
-        if (code && !activeDiscountCodes.includes(code)) {
-          activeDiscountCodes.push(code);
-        }
-      });
-      const combinedDiscountParam = activeDiscountCodes.join(",");
-
-      if (combinedDiscountParam) {
-        // Pre-apply discount to session in background
-        fetch("/discount/" + encodeURIComponent(combinedDiscountParam)).catch(() => {});
-
-        // Attach discount to checkout buttons & form
-        const checkoutBtns = document.querySelectorAll('form[action*="/cart"] button[name="checkout"], a[href*="/checkout"], .cart__checkout-button, button.cart__checkout-button, [name="checkout"]');
-        checkoutBtns.forEach(btn => {
-          btn.addEventListener("click", function(e) {
-            if (btn.tagName === "A") {
-              e.preventDefault();
-              window.location.href = "/checkout?discount=" + encodeURIComponent(combinedDiscountParam);
-            } else {
-              const form = btn.closest("form");
-              if (form) {
-                let input = form.querySelector('input[name="discount"]');
-                if (!input) {
-                  input = document.createElement("input");
-                  input.type = "hidden";
-                  input.name = "discount";
-                  form.appendChild(input);
-                }
-                input.value = combinedDiscountParam;
-              }
-            }
-          });
+      // Clean checkout buttons so Shopify Automatic Line Discount Function executes natively
+      const checkoutBtns = document.querySelectorAll('form[action*="/cart"] button[name="checkout"], a[href*="/checkout"], .cart__checkout-button, button.cart__checkout-button, [name="checkout"]');
+      checkoutBtns.forEach(btn => {
+        btn.addEventListener("click", function(e) {
+          const form = btn.closest("form");
+          if (form) {
+            let input = form.querySelector('input[name="discount"]');
+            if (input) input.remove();
+          }
         });
-      }
+      });
     } catch(err) {
       console.error('Error applying Option A cart layout:', err);
     }

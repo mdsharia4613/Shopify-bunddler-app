@@ -885,11 +885,6 @@
           });
 
           if (response.ok) {
-            if (discount > 0) {
-              try {
-                await fetch('/discount/' + encodeURIComponent(discountCode));
-              } catch (discErr) {}
-            }
             setTimeout(function() {
               window.location.href = '/cart';
             }, 250);
