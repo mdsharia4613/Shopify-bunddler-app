@@ -169,7 +169,7 @@
 
           let popBadgeHtml = '';
           if (tier.popularBadge && tier.popularBadge.trim() !== '') {
-            popBadgeHtml = '<div class="bxgy-popular-badge"><span>⚡</span><span>' + tier.popularBadge + '</span></div>';
+            popBadgeHtml = '<div class="bxgy-popular-badge"><span>âš¡</span><span>' + tier.popularBadge + '</span></div>';
           }
 
           let subtext = '';
@@ -273,24 +273,53 @@
           const finalCents = rawCents - savedCents;
 
           let items = [];
-          if (discount > 0) {
+          if (discount > 0 && qty >= 2) {
             const bundleGroupId = 'bxgy_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+            const parentVarGid = 'gid://shopify/ProductVariant/' + currentVariantId;
+            const fullTitle = currentProductTitle + ' (' + tierTitle + ')';
+            const componentsText = getQty > 0
+              ? currentProductTitle + ' x ' + qty + ' (' + buyQty + ' Paid + ' + getQty + ' Free)'
+              : currentProductTitle + ' x ' + qty;
+
+            const split1 = (getQty > 0 && buyQty > 0) ? buyQty : 1;
+            const split2 = qty - split1;
+
             items.push({
               id: parseInt(currentVariantId, 10),
-              quantity: qty,
+              quantity: split1,
               properties: {
                 '_bundle': 'Buy X Get Y',
                 '_bundle_type': 'bxgy',
+                '_bundle_part': 'paid',
                 '_bundle_group': bundleGroupId,
-                '_bundle_title': currentProductTitle + ' (' + tierTitle + ')',
-                '_bundle_components': getQty > 0
-                  ? currentProductTitle + ' x ' + qty + ' (' + buyQty + ' Paid + ' + getQty + ' Free)'
-                  : currentProductTitle + ' x ' + qty,
+                '_bundle_title': fullTitle,
+                '_bundle_components': componentsText,
                 '_bundle_discount': discount + '%',
                 '_bundle_discount_num': discount.toString(),
                 '_bundle_original_cents': rawCents.toString(),
                 '_bundle_discounted_cents': finalCents.toString(),
                 '_bundle_image': currentProductImage || '',
+                '_bundle_parent_variant_id': parentVarGid,
+                '_volume_tier': tierTitle
+              }
+            });
+
+            items.push({
+              id: parseInt(currentVariantId, 10),
+              quantity: split2,
+              properties: {
+                '_bundle': 'Buy X Get Y',
+                '_bundle_type': 'bxgy',
+                '_bundle_part': 'free',
+                '_bundle_group': bundleGroupId,
+                '_bundle_title': fullTitle,
+                '_bundle_components': componentsText,
+                '_bundle_discount': discount + '%',
+                '_bundle_discount_num': discount.toString(),
+                '_bundle_original_cents': rawCents.toString(),
+                '_bundle_discounted_cents': finalCents.toString(),
+                '_bundle_image': currentProductImage || '',
+                '_bundle_parent_variant_id': parentVarGid,
                 '_volume_tier': tierTitle
               }
             });
