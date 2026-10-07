@@ -168,6 +168,8 @@ export default function VolumeDiscountBuilder() {
 
     // Product Targeting State (All products / Selected products / Selected collections)
     const [appliesTo, setAppliesTo] = useState(parsedInitial?.appliesTo || "all");
+    const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+    const [copiedCode, setCopiedCode] = useState(false);
     const [selectedProducts, setSelectedProducts] = useState(parsedInitial?.selectedProducts || []);
     const [selectedCollections, setSelectedCollections] = useState(parsedInitial?.selectedCollections || []);
 
@@ -1267,6 +1269,68 @@ export default function VolumeDiscountBuilder() {
                                 </div>
                             ))}
                         </div>
+                    </div>
+
+                    {/* Advance (Custom Placement & Embed Code) */}
+                    <div style={{ backgroundColor: "#ffffff", borderRadius: "12px", border: "1px solid #e5e7eb", padding: "16px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", marginTop: "20px" }}>
+                        <div
+                            onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none" }}
+                        >
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <span style={{ fontSize: "16px" }}>&#9881;&#65039;</span>
+                                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#111827" }}>
+                                    Advance
+                                </h3>
+                                <span style={{ fontSize: "11px", fontWeight: 600, color: "#4b5563", backgroundColor: "#f3f4f6", padding: "2px 8px", borderRadius: "12px" }}>
+                                    Custom Placement
+                                </span>
+                            </div>
+                            <span style={{ fontSize: "13px", color: "#6b7280", transition: "transform 0.2s", transform: isAdvancedOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                                &#9660;
+                            </span>
+                        </div>
+
+                        {isAdvancedOpen && (
+                            <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid #f3f4f6" }}>
+                                <p style={{ margin: "0 0 10px 0", fontSize: "13px", color: "#4b5563", lineHeight: 1.5 }}>
+                                    To place this Volume Discount widget in a custom location on your product page (e.g. inside <code>main-product.liquid</code>, above/below Add to Cart, or in a <strong>Custom Liquid</strong> theme block), copy and paste this HTML embed code:
+                                </p>
+                                <div style={{ backgroundColor: "#1e293b", borderRadius: "8px", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
+                                    <code style={{ fontFamily: "monospace", fontSize: "12px", color: "#38bdf8", wordBreak: "break-all" }}>
+                                        &lt;div class="smart-bundle-widget" data-widget-type="volume-discount"&gt;&lt;/div&gt;
+                                    </code>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText('<div class="smart-bundle-widget" data-widget-type="volume-discount"></div>');
+                                            setCopiedCode(true);
+                                            setTimeout(() => setCopiedCode(false), 2000);
+                                        }}
+                                        style={{
+                                            padding: "6px 12px",
+                                            backgroundColor: copiedCode ? "#10b981" : "#2563eb",
+                                            color: "#ffffff",
+                                            border: "none",
+                                            borderRadius: "6px",
+                                            fontSize: "12px",
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            whiteSpace: "nowrap",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "4px",
+                                            flexShrink: 0
+                                        }}
+                                    >
+                                        {copiedCode ? "✓ Copied!" : "📋 Copy Code"}
+                                    </button>
+                                </div>
+                                <div style={{ marginTop: "10px", fontSize: "12px", color: "#6b7280", lineHeight: 1.4 }}>
+                                    &#128161; <em>Our storefront script will automatically detect this container and render the Volume Discount widget inside it!</em>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                 </div>

@@ -9,6 +9,13 @@
       if (container.dataset.bxgyInitialized) return;
       container.dataset.bxgyInitialized = 'true';
 
+      // Auto-relocate if custom embed placeholder exists
+      const customEmbed = document.querySelector('.smart-bundle-widget[data-widget-type="bxgy"]');
+      if (customEmbed && container.parentElement !== customEmbed) {
+        customEmbed.appendChild(container);
+        container.style.display = 'block';
+      }
+
       const blockId = container.getAttribute('data-block-id');
       const productId = container.getAttribute('data-product-id');
       let currentVariantId = container.getAttribute('data-variant-id');

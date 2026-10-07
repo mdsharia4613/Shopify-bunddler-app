@@ -432,6 +432,13 @@
     const container = document.getElementById('smart-bundle-{{ block.id }}');
     if (!container) return;
 
+      // Auto-relocate if custom embed placeholder exists
+      const customEmbed = document.querySelector('.smart-bundle-widget[data-widget-type="multi-collection"]');
+      if (customEmbed && container.parentElement !== customEmbed) {
+        customEmbed.appendChild(container);
+        container.style.display = 'block';
+      }
+
     const stepsContainer = document.getElementById('sb-steps-{{ block.id }}');
     const origPriceEl = document.getElementById('sb-orig-price-{{ block.id }}');
     const finalPriceEl = document.getElementById('sb-final-price-{{ block.id }}');

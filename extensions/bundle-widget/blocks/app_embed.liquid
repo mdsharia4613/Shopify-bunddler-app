@@ -419,6 +419,35 @@
     }
   }
 
+  // Universal Smart Bundle Embed Relocator
+  function relocateCustomWidgets() {
+    try {
+      const embeds = document.querySelectorAll('.smart-bundle-widget[data-widget-type]');
+      embeds.forEach(embed => {
+        const type = embed.getAttribute('data-widget-type');
+        let widget = null;
+        if (type === 'bxgy') {
+          widget = document.querySelector('.bxgy-widget-container[data-bxgy-widget]');
+        } else if (type === 'volume-discount') {
+          widget = document.querySelector('[id^="vd-widget-"]');
+        } else if (type === 'multi-collection') {
+          widget = document.querySelector('.smart-bundle-container[id^="smart-bundle-"]');
+        }
+        if (widget && widget.parentElement !== embed) {
+          embed.innerHTML = '';
+          embed.appendChild(widget);
+          widget.style.display = 'block';
+        }
+      });
+    } catch(e) {}
+  }
+
+  relocateCustomWidgets();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', relocateCustomWidgets);
+  }
+  window.addEventListener('load', relocateCustomWidgets);
+
   // Execute immediately without delay to prevent flashing
   renderOptionACartDesign();
   if (document.readyState === 'loading') {
