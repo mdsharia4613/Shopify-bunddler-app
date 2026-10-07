@@ -352,37 +352,90 @@
         }
       });
 
-      // Seamlessly sync discount to checkout
-      let primaryDiscountCode = '';
-      cart.items.forEach((item) => {
+      // Synchronize Cart Subtotal Sidebar with the real bundle prices
+      let totalCalculatedCents = 0;
+      let totalSavingsCents = 0;
+      const computedGroups = new Set();
+
+      cart.items.forEach(item => {
         const props = item.properties || {};
-        if (props['_bundle_group'] && props['_bundle_discount_code'] && !primaryDiscountCode) {
-          primaryDiscountCode = props['_bundle_discount_code'];
+        const gid = props["_bundle_group"];
+        if (gid) {
+          if (!computedGroups.has(gid)) {
+            computedGroups.add(gid);
+            const discCents = parseInt(props["_bundle_discounted_cents"] || "0", 10);
+            const origCents = parseInt(props["_bundle_original_cents"] || "0", 10);
+            if (discCents > 0) {
+              totalCalculatedCents += discCents;
+              totalSavingsCents += Math.max(0, origCents - discCents);
+            } else {
+              totalCalculatedCents += (item.final_line_price || item.line_price);
+            }
+          }
+        } else {
+          totalCalculatedCents += (item.final_line_price || item.line_price);
         }
       });
 
-      if (primaryDiscountCode) {
+      if (totalSavingsCents > 0) {
+        const totalSelectors = [
+          ".totals__subtotal-value",
+          ".cart__subtotal",
+          "[data-cart-subtotal]",
+          ".cart-subtotal__price",
+          ".cart__footer .totals__subtotal-value",
+          "#main-cart-footer .totals__subtotal-value"
+        ];
+        totalSelectors.forEach(sel => {
+          const els = document.querySelectorAll(sel);
+          els.forEach(el => {
+            el.textContent = formatMoney(totalCalculatedCents);
+          });
+        });
+
+        const savingsNodes = Array.from(document.querySelectorAll("p, span, div")).filter(el =>
+          el.children.length === 0 && (el.textContent.includes("saving") || el.textContent.includes("Save"))
+        );
+        savingsNodes.forEach(node => {
+          if (node.textContent.includes("$")) {
+            node.textContent = "You're saving " + formatMoney(totalSavingsCents);
+          }
+        });
+      }
+
+      // Collect all unique bundle discount codes for checkout combination
+      const activeDiscountCodes = [];
+      cart.items.forEach((item) => {
+        const props = item.properties || {};
+        const code = props["_bundle_discount_code"];
+        if (code && !activeDiscountCodes.includes(code)) {
+          activeDiscountCodes.push(code);
+        }
+      });
+      const combinedDiscountParam = activeDiscountCodes.join(",");
+
+      if (combinedDiscountParam) {
         // Pre-apply discount to session in background
-        fetch('/discount/' + encodeURIComponent(primaryDiscountCode)).catch(() => {});
+        fetch("/discount/" + encodeURIComponent(combinedDiscountParam)).catch(() => {});
 
         // Attach discount to checkout buttons & form
         const checkoutBtns = document.querySelectorAll('form[action*="/cart"] button[name="checkout"], a[href*="/checkout"], .cart__checkout-button, button.cart__checkout-button, [name="checkout"]');
         checkoutBtns.forEach(btn => {
-          btn.addEventListener('click', function(e) {
-            if (btn.tagName === 'A') {
+          btn.addEventListener("click", function(e) {
+            if (btn.tagName === "A") {
               e.preventDefault();
-              window.location.href = '/checkout?discount=' + encodeURIComponent(primaryDiscountCode);
+              window.location.href = "/checkout?discount=" + encodeURIComponent(combinedDiscountParam);
             } else {
-              const form = btn.closest('form');
+              const form = btn.closest("form");
               if (form) {
                 let input = form.querySelector('input[name="discount"]');
                 if (!input) {
-                  input = document.createElement('input');
-                  input.type = 'hidden';
-                  input.name = 'discount';
+                  input = document.createElement("input");
+                  input.type = "hidden";
+                  input.name = "discount";
                   form.appendChild(input);
                 }
-                input.value = primaryDiscountCode;
+                input.value = combinedDiscountParam;
               }
             }
           });
