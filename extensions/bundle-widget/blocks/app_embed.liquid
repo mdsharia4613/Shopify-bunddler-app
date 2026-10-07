@@ -231,7 +231,7 @@
         }
 
         const chipsHtml = components.map(c => 
-          '<span class="sb-cart-chip"><span style="color:#059669; font-weight:bold;">•</span> ' + c + '</span>'
+          '<span class="sb-cart-chip"><span style="color:#059669; font-weight:bold;">â€¢</span> ' + c + '</span>'
         ).join('');
 
         // Pricing calculation (robust for volume discount and multi-collection bundle)
@@ -273,7 +273,7 @@
               <div class="sb-cart-content">
                 <div class="sb-cart-header">
                   <h3 class="sb-cart-title">${bundleTitle}</h3>
-                  <span class="sb-cart-badge">🏷️ ${badgeLabel}</span>
+                  <span class="sb-cart-badge">ðŸ·ï¸ ${badgeLabel}</span>
                 </div>
                 <div class="sb-cart-components-box">
                   <div class="sb-cart-components-label">${componentsLabel}</div>
@@ -323,16 +323,52 @@
           `;
         }
       });
+
+      // Seamlessly sync discount to checkout
+      let primaryDiscountCode = '';
+      cart.items.forEach((item) => {
+        const props = item.properties || {};
+        if (props['_bundle_group'] && props['_bundle_discount_code'] && !primaryDiscountCode) {
+          primaryDiscountCode = props['_bundle_discount_code'];
+        }
+      });
+
+      if (primaryDiscountCode) {
+        // Pre-apply discount to session in background
+        fetch('/discount/' + encodeURIComponent(primaryDiscountCode)).catch(() => {});
+
+        // Attach discount to checkout buttons & form
+        const checkoutBtns = document.querySelectorAll('form[action*="/cart"] button[name="checkout"], a[href*="/checkout"], .cart__checkout-button, button.cart__checkout-button, [name="checkout"]');
+        checkoutBtns.forEach(btn => {
+          btn.addEventListener('click', function(e) {
+            if (btn.tagName === 'A') {
+              e.preventDefault();
+              window.location.href = '/checkout?discount=' + encodeURIComponent(primaryDiscountCode);
+            } else {
+              const form = btn.closest('form');
+              if (form) {
+                let input = form.querySelector('input[name="discount"]');
+                if (!input) {
+                  input = document.createElement('input');
+                  input.type = 'hidden';
+                  input.name = 'discount';
+                  form.appendChild(input);
+                }
+                input.value = primaryDiscountCode;
+              }
+            }
+          });
+        });
+      }
     } catch(err) {
       console.error('Error applying Option A cart layout:', err);
     }
   }
 
-  // Execute immediately and on DOM load / cart updates
+  // Execute immediately without delay to prevent flashing
+  renderOptionACartDesign();
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(renderOptionACartDesign, 60));
-  } else {
-    setTimeout(renderOptionACartDesign, 60);
+    document.addEventListener('DOMContentLoaded', renderOptionACartDesign);
   }
   document.addEventListener('cart:updated', renderOptionACartDesign);
 })();

@@ -139,6 +139,40 @@ export const action = async ({ request }) => {
                 }
             );
         }
+
+        // Auto-create Shopify discount codes for each tier
+        for (const tier of (parsedConfig.tiers || [])) {
+            const discPct = Number(tier.discount) || 0;
+            if (discPct > 0) {
+                const code = `BXGY${Math.round(discPct)}`;
+                try {
+                    await admin.graphql(
+                        `#graphql
+                        mutation createBxgyCode($basicCodeDiscount: DiscountCodeBasicInput!) {
+                            discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+                                codeDiscountNode { id }
+                                userErrors { field message }
+                            }
+                        }`,
+                        {
+                            variables: {
+                                basicCodeDiscount: {
+                                    title: `${savedBundle.title} - ${tier.title} (${discPct}% OFF)`,
+                                    code,
+                                    startsAt: new Date().toISOString(),
+                                    customerSelection: { all: true },
+                                    customerGets: {
+                                        value: { percentage: discPct / 100.0 },
+                                        items: { all: true }
+                                    },
+                                    appliesOncePerCustomer: false
+                                }
+                            }
+                        }
+                    );
+                } catch (e) {}
+            }
+        }
     } catch (err) {
         console.error("BXGY metafield sync error:", err);
     }
@@ -506,7 +540,7 @@ export default function BxgyBuilder() {
                                                 onClick={() => removeTier(idx)}
                                                 style={{ background: "none", border: "none", color: "#ef4444", fontSize: "13px", cursor: "pointer", fontWeight: 600 }}
                                             >
-                                                ✕ Remove
+                                                âœ• Remove
                                             </button>
                                         )}
                                     </div>
@@ -726,7 +760,7 @@ export default function BxgyBuilder() {
                                                     gap: "4px",
                                                 }}
                                             >
-                                                <span>✨</span>
+                                                <span>âœ¨</span>
                                                 <span>{tier.popularBadge}</span>
                                             </div>
                                         )}

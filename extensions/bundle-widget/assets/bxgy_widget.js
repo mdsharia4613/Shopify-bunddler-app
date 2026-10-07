@@ -169,7 +169,7 @@
 
           let popBadgeHtml = '';
           if (tier.popularBadge && tier.popularBadge.trim() !== '') {
-            popBadgeHtml = '<div class="bxgy-popular-badge"><span>âš¡</span><span>' + tier.popularBadge + '</span></div>';
+            popBadgeHtml = '<div class="bxgy-popular-badge"><span>Ã¢Å¡Â¡</span><span>' + tier.popularBadge + '</span></div>';
           }
 
           let subtext = '';
@@ -273,7 +273,8 @@
           const finalCents = rawCents - savedCents;
 
           let items = [];
-          if (discount > 0 && qty >= 2) {
+          const discountCode = 'BXGY' + Math.round(discount);
+          if (discount > 0) {
             const bundleGroupId = 'bxgy_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
             const parentVarGid = 'gid://shopify/ProductVariant/' + currentVariantId;
             const fullTitle = currentProductTitle + ' (' + tierTitle + ')';
@@ -281,41 +282,18 @@
               ? currentProductTitle + ' x ' + qty + ' (' + buyQty + ' Paid + ' + getQty + ' Free)'
               : currentProductTitle + ' x ' + qty;
 
-            const split1 = (getQty > 0 && buyQty > 0) ? buyQty : 1;
-            const split2 = qty - split1;
-
             items.push({
               id: parseInt(currentVariantId, 10),
-              quantity: split1,
+              quantity: qty,
               properties: {
                 '_bundle': 'Buy X Get Y',
                 '_bundle_type': 'bxgy',
-                '_bundle_part': 'paid',
                 '_bundle_group': bundleGroupId,
                 '_bundle_title': fullTitle,
                 '_bundle_components': componentsText,
                 '_bundle_discount': discount + '%',
                 '_bundle_discount_num': discount.toString(),
-                '_bundle_original_cents': rawCents.toString(),
-                '_bundle_discounted_cents': finalCents.toString(),
-                '_bundle_image': currentProductImage || '',
-                '_bundle_parent_variant_id': parentVarGid,
-                '_volume_tier': tierTitle
-              }
-            });
-
-            items.push({
-              id: parseInt(currentVariantId, 10),
-              quantity: split2,
-              properties: {
-                '_bundle': 'Buy X Get Y',
-                '_bundle_type': 'bxgy',
-                '_bundle_part': 'free',
-                '_bundle_group': bundleGroupId,
-                '_bundle_title': fullTitle,
-                '_bundle_components': componentsText,
-                '_bundle_discount': discount + '%',
-                '_bundle_discount_num': discount.toString(),
+                '_bundle_discount_code': discountCode,
                 '_bundle_original_cents': rawCents.toString(),
                 '_bundle_discounted_cents': finalCents.toString(),
                 '_bundle_image': currentProductImage || '',
@@ -340,9 +318,14 @@
           });
 
           if (response.ok) {
+            if (discount > 0) {
+              try {
+                await fetch('/discount/' + encodeURIComponent(discountCode));
+              } catch (discErr) {}
+            }
             setTimeout(function() {
               window.location.href = '/cart';
-            }, 300);
+            }, 250);
           } else {
             const err = await response.json();
             throw new Error(err.description || 'Could not add deal to cart.');
