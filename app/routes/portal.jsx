@@ -1,6 +1,12 @@
-﻿import { useState, useMemo } from "react";
+﻿import { useState } from "react";
 import { useLoaderData, useFetcher } from "react-router";
 import prisma from "../db.server";
+
+// Modular Portal Components
+import ProductSelectorModal from "../components/portal/ProductSelectorModal";
+import VolumeDiscountBuilder from "../components/portal/VolumeDiscountBuilder";
+import BxgyBuilder from "../components/portal/BxgyBuilder";
+import StepBundleBuilder from "../components/portal/StepBundleBuilder";
 
 export const loader = async ({ request }) => {
   const url = new URL(request.url);
@@ -32,6 +38,7 @@ export const loader = async ({ request }) => {
       orderBy: { createdAt: "desc" },
     });
 
+    // Option 1: Fetch store products from Shopify Admin GraphQL API
     const session = await prisma.session.findFirst({
       where: { shop },
       orderBy: { expires: "desc" },
@@ -78,6 +85,7 @@ export const loader = async ({ request }) => {
     console.error("Portal loader error:", err);
   }
 
+  // Default fallback products
   if (!products || products.length === 0) {
     products = [
       {
@@ -188,16 +196,15 @@ export default function StandalonePortal() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [storeDropdown, setStoreDropdown] = useState(false);
 
-  // Next Slide: Active Builder State (null = in templates gallery, "volume" | "bxgy" | "step" = in builder)
+  // Next Slide: Active Builder State
   const [activeBuilder, setActiveBuilder] = useState(null);
   const [editingBundleId, setEditingBundleId] = useState(null);
 
   // Option 1: Product Selector Modal State
   const [showProductModal, setShowProductModal] = useState(false);
-  const [productSearch, setProductSearch] = useState("");
   const [modalTargetField, setModalTargetField] = useState("vol");
 
-  // Volume Discounts Builder Form State
+  // Volume Discounts Form State
   const [volTitle, setVolTitle] = useState("Volume Discounts Campaign");
   const [volSelectedProducts, setVolSelectedProducts] = useState(products.slice(0, 1));
   const [volTiers, setVolTiers] = useState([
@@ -207,7 +214,7 @@ export default function StandalonePortal() {
   ]);
   const [volColor, setVolColor] = useState("#f59e0b");
 
-  // BXGY Builder Form State
+  // BXGY Form State
   const [bxgyTitle, setBxgyTitle] = useState("Buy 2 Get 1 Free Deal");
   const [bxgySelectedProducts, setBxgySelectedProducts] = useState(products.slice(0, 1));
   const [bxgyBuyQty, setBxgyBuyQty] = useState(2);
@@ -215,7 +222,7 @@ export default function StandalonePortal() {
   const [bxgyBadge, setBxgyBadge] = useState("BUY 2 GET 1 FREE");
   const [bxgyColor, setBxgyColor] = useState("#10b981");
 
-  // Step Bundle Builder Form State
+  // Step Bundle Form State
   const [stepTitle, setStepTitle] = useState("Multi-Collection Step Bundle");
   const [step1Products, setStep1Products] = useState(products.slice(0, 1));
   const [step2Products, setStep2Products] = useState(products.slice(1, 2));
@@ -230,7 +237,6 @@ export default function StandalonePortal() {
     { id: "settings", label: "Settings", icon: "⚙️" },
   ];
 
-  // Open builder for creating new or editing
   const handleOpenBuilder = (type, existingBundle = null) => {
     setActiveBuilder(type);
     setActiveTab("templates");
@@ -362,15 +368,18 @@ export default function StandalonePortal() {
     }
   };
 
-  const filteredProducts = useMemo(() => {
-    if (!productSearch.trim()) return products;
-    return products.filter(p => p.title.toLowerCase().includes(productSearch.toLowerCase()));
-  }, [products, productSearch]);
+  const getSelectedModalProducts = () => {
+    if (modalTargetField === "vol") return volSelectedProducts;
+    if (modalTargetField === "bxgy") return bxgySelectedProducts;
+    if (modalTargetField === "step1") return step1Products;
+    if (modalTargetField === "step2") return step2Products;
+    if (modalTargetField === "step3") return step3Products;
+    return [];
+  };
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif", color: "#0f172a" }}>
-      {/* 1. Left SaaS Sidebar (Klaviyo Style - 3 Menus Only) */}
+      {/* 1. Left SaaS Sidebar (3 Menus Only) */}
       <aside style={{ width: 250, background: "#0f172a", color: "#ffffff", display: "flex", flexDirection: "column", flexShrink: 0, borderRight: "1px solid #1e293b" }}>
-        {/* Brand Header */}
         <div style={{ padding: "24px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid #1e293b" }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #f59e0b, #ef4444)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
             ⚡
@@ -386,18 +395,7 @@ export default function StandalonePortal() {
           <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 8 }}>CONNECTED STORE</div>
           <div
             onClick={() => setStoreDropdown(!storeDropdown)}
-            style={{
-              background: "#1e293b",
-              border: "1px solid #334155",
-              padding: "8px 12px",
-              borderRadius: 8,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              fontSize: 13,
-              fontWeight: 600,
-            }}
+            style={{ background: "#1e293b", border: "1px solid #334155", padding: "8px 12px", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13, fontWeight: 600 }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
               <span style={{ color: "#10b981" }}>●</span>
@@ -462,7 +460,7 @@ export default function StandalonePortal() {
         </div>
       </aside>
 
-      {/* 2. Main View Workspace */}
+      {/* 2. Main Workspace */}
       <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflowY: "auto" }}>
         {/* Top Header */}
         <header style={{ height: 64, background: "#ffffff", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 28px", flexShrink: 0 }}>
@@ -482,18 +480,7 @@ export default function StandalonePortal() {
               href={`https://${shop}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{
-                background: "#0f172a",
-                color: "#ffffff",
-                padding: "8px 14px",
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 600,
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
+              style={{ background: "#0f172a", color: "#ffffff", padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
             >
               View Storefront ↗
             </a>
@@ -505,7 +492,6 @@ export default function StandalonePortal() {
           {/* TAB 1: DASHBOARD */}
           {activeTab === "dashboard" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              {/* KPI Cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
                 <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>TOTAL BUNDLE REVENUE</div>
@@ -570,24 +556,13 @@ export default function StandalonePortal() {
                             </td>
                             <td style={{ padding: "16px 24px", textAlign: "center" }}>
                               <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-                                {/* Toggle Status */}
                                 <button
                                   type="button"
                                   onClick={() => fetcher.submit({ intent: "toggle_status", bundleId: b.id, currentStatus: b.status }, { method: "POST" })}
-                                  style={{
-                                    background: isActive ? "#10b981" : "#cbd5e1",
-                                    color: "#ffffff",
-                                    border: "none",
-                                    borderRadius: 6,
-                                    padding: "4px 10px",
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    cursor: "pointer",
-                                  }}
+                                  style={{ background: isActive ? "#10b981" : "#cbd5e1", color: "#ffffff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
                                 >
                                   {isActive ? "ON" : "OFF"}
                                 </button>
-                                {/* Edit */}
                                 <button
                                   type="button"
                                   onClick={() => handleOpenBuilder(stratType, b)}
@@ -595,7 +570,6 @@ export default function StandalonePortal() {
                                 >
                                   Edit
                                 </button>
-                                {/* Delete */}
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -624,7 +598,7 @@ export default function StandalonePortal() {
               </div>
             </div>
           )}
-          {/* TAB 2: TEMPLATES (Gallery OR Next Slide Builder) */}
+          {/* TAB 2: TEMPLATES (Gallery OR Modular Next Slide Builder) */}
           {activeTab === "templates" && (
             <div>
               {/* SLIDE A: WIDGET TEMPLATES GALLERY */}
@@ -638,16 +612,14 @@ export default function StandalonePortal() {
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24 }}>
-                    {/* Widget 1: Multi-Collection Step Bundle */}
+                    {/* Multi-Collection Step Bundle Card */}
                     <div style={{ background: "#ffffff", border: "2px solid #e2e8f0", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                           <span style={{ fontSize: 28 }}>📦</span>
                           <div>
                             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Multi-Collection Step Bundle</h3>
-                            <span style={{ fontSize: 11, background: "#dbeafe", color: "#1e40af", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>
-                              MULTI-TIERED
-                            </span>
+                            <span style={{ fontSize: 11, background: "#dbeafe", color: "#1e40af", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>MULTI-TIERED</span>
                           </div>
                         </div>
                         <p style={{ color: "#64748b", fontSize: 14, lineHeight: 1.5, marginBottom: 18 }}>
@@ -671,16 +643,14 @@ export default function StandalonePortal() {
                       </button>
                     </div>
 
-                    {/* Widget 2: Buy X Get Y (BXGY) Deals */}
+                    {/* BXGY Deals Card */}
                     <div style={{ background: "#ffffff", border: "2px solid #e2e8f0", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                           <span style={{ fontSize: 28 }}>⚡</span>
                           <div>
                             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Buy X Get Y (BXGY) Deals</h3>
-                            <span style={{ fontSize: 11, background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>
-                              HIGH CONVERSION
-                            </span>
+                            <span style={{ fontSize: 11, background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>HIGH CONVERSION</span>
                           </div>
                         </div>
                         <p style={{ color: "#64748b", fontSize: 14, lineHeight: 1.5, marginBottom: 18 }}>
@@ -703,16 +673,14 @@ export default function StandalonePortal() {
                       </button>
                     </div>
 
-                    {/* Widget 3: Volume Discounts */}
+                    {/* Volume Discounts Card */}
                     <div style={{ background: "#ffffff", border: "2px solid #e2e8f0", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                           <span style={{ fontSize: 28 }}>📈</span>
                           <div>
                             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Volume Quantity Discounts</h3>
-                            <span style={{ fontSize: 11, background: "#ecfdf5", color: "#065f46", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>
-                              TIERED PACKS
-                            </span>
+                            <span style={{ fontSize: 11, background: "#ecfdf5", color: "#065f46", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>TIERED PACKS</span>
                           </div>
                         </div>
                         <p style={{ color: "#64748b", fontSize: 14, lineHeight: 1.5, marginBottom: 18 }}>
@@ -739,10 +707,9 @@ export default function StandalonePortal() {
                 </div>
               )}
 
-              {/* SLIDE B: IN-APP WIDGET BUILDER (NEXT SLIDE) */}
+              {/* SLIDE B: MODULAR BUILDER SLIDE */}
               {activeBuilder && (
                 <div>
-                  {/* Top Breadcrumb & Back Button */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
                     <button
                       onClick={() => setActiveBuilder(null)}
@@ -751,361 +718,65 @@ export default function StandalonePortal() {
                       <span>← Back to Templates</span>
                     </button>
 
-                    <div style={{ display: "flex", gap: 12 }}>
-                      <button
-                        onClick={() => {
-                          if (activeBuilder === "volume") handleSaveVolume();
-                          if (activeBuilder === "bxgy") handleSaveBXGY();
-                          if (activeBuilder === "step") handleSaveStep();
-                        }}
-                        style={{ background: "#10b981", color: "#ffffff", border: "none", padding: "10px 24px", borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 10px rgba(16, 185, 129, 0.3)" }}
-                      >
-                        💾 Save & Publish to Storefront
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => {
+                        if (activeBuilder === "volume") handleSaveVolume();
+                        if (activeBuilder === "bxgy") handleSaveBXGY();
+                        if (activeBuilder === "step") handleSaveStep();
+                      }}
+                      style={{ background: "#10b981", color: "#ffffff", border: "none", padding: "10px 24px", borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 10px rgba(16, 185, 129, 0.3)" }}
+                    >
+                      💾 Save & Publish to Storefront
+                    </button>
                   </div>
 
-                  {/* 2-Column Builder: Left Config, Right Live Preview */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 28, alignItems: "start" }}>
-                    {/* LEFT COLUMN: BUILDER CONFIG */}
-                    <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 16, padding: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                      {/* VOLUME DISCOUNTS BUILDER */}
-                      {activeBuilder === "volume" && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                          <div>
-                            <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Campaign Title</label>
-                            <input
-                              type="text"
-                              value={volTitle}
-                              onChange={(e) => setVolTitle(e.target.value)}
-                              style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 14 }}
-                            />
-                          </div>
+                  {/* Render Dedicated Modular Builders */}
+                  {activeBuilder === "volume" && (
+                    <VolumeDiscountBuilder
+                      title={volTitle}
+                      setTitle={setVolTitle}
+                      selectedProducts={volSelectedProducts}
+                      setSelectedProducts={setVolSelectedProducts}
+                      tiers={volTiers}
+                      setTiers={setVolTiers}
+                      color={volColor}
+                      setColor={setVolColor}
+                      onOpenProductPicker={() => openProductPicker("vol")}
+                    />
+                  )}
 
-                          {/* Option 1: Target Products with In-App Modal */}
-                          <div>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                              <label style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Target Products ({volSelectedProducts.length})</label>
-                              <button
-                                type="button"
-                                onClick={() => openProductPicker("vol")}
-                                style={{ background: "#0f172a", color: "#ffffff", border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                              >
-                                🔍 Select Products from Store
-                              </button>
-                            </div>
+                  {activeBuilder === "bxgy" && (
+                    <BxgyBuilder
+                      title={bxgyTitle}
+                      setTitle={setBxgyTitle}
+                      selectedProducts={bxgySelectedProducts}
+                      setSelectedProducts={setBxgySelectedProducts}
+                      buyQty={bxgyBuyQty}
+                      setBuyQty={setBxgyBuyQty}
+                      getQty={bxgyGetQty}
+                      setGetQty={setBxgyGetQty}
+                      badge={bxgyBadge}
+                      setBadge={setBxgyBadge}
+                      color={bxgyColor}
+                      setColor={setBxgyColor}
+                      onOpenProductPicker={() => openProductPicker("bxgy")}
+                    />
+                  )}
 
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                              {volSelectedProducts.map((p) => (
-                                <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc", padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                    <img src={p.image} alt={p.title} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} />
-                                    <div>
-                                      <div style={{ fontSize: 13, fontWeight: 700 }}>{p.title}</div>
-                                      <div style={{ fontSize: 11, color: "#64748b" }}>${p.price}</div>
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setVolSelectedProducts(volSelectedProducts.filter(x => x.id !== p.id))}
-                                    style={{ background: "none", border: "none", color: "#ef4444", fontSize: 16, cursor: "pointer" }}
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Tiers Configuration */}
-                          <div>
-                            <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 8 }}>Quantity Discount Tiers</label>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                              {volTiers.map((tier, idx) => (
-                                <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr", gap: 10, background: "#f8fafc", padding: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}>
-                                  <div>
-                                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Qty</div>
-                                    <input
-                                      type="number"
-                                      value={tier.quantity}
-                                      onChange={(e) => {
-                                        const next = [...volTiers];
-                                        next[idx].quantity = parseInt(e.target.value, 10) || 1;
-                                        setVolTiers(next);
-                                      }}
-                                      style={{ width: "100%", padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }}
-                                    />
-                                  </div>
-                                  <div>
-                                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Discount %</div>
-                                    <input
-                                      type="number"
-                                      value={tier.discountPercent}
-                                      onChange={(e) => {
-                                        const next = [...volTiers];
-                                        next[idx].discountPercent = parseInt(e.target.value, 10) || 0;
-                                        setVolTiers(next);
-                                      }}
-                                      style={{ width: "100%", padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }}
-                                    />
-                                  </div>
-                                  <div>
-                                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Badge Label</div>
-                                    <input
-                                      type="text"
-                                      value={tier.badge}
-                                      onChange={(e) => {
-                                        const next = [...volTiers];
-                                        next[idx].badge = e.target.value;
-                                        setVolTiers(next);
-                                      }}
-                                      style={{ width: "100%", padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }}
-                                    />
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div>
-                            <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Widget Accent Color</label>
-                            <input
-                              type="color"
-                              value={volColor}
-                              onChange={(e) => setVolColor(e.target.value)}
-                              style={{ width: 60, height: 36, border: "none", cursor: "pointer" }}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* BXGY BUILDER */}
-                      {activeBuilder === "bxgy" && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                          <div>
-                            <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Campaign Title</label>
-                            <input
-                              type="text"
-                              value={bxgyTitle}
-                              onChange={(e) => setBxgyTitle(e.target.value)}
-                              style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 14 }}
-                            />
-                          </div>
-
-                          {/* Target Products */}
-                          <div>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                              <label style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Target Products</label>
-                              <button
-                                type="button"
-                                onClick={() => openProductPicker("bxgy")}
-                                style={{ background: "#0f172a", color: "#ffffff", border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                              >
-                                🔍 Select Products from Store
-                              </button>
-                            </div>
-
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                              {bxgySelectedProducts.map((p) => (
-                                <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc", padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                    <img src={p.image} alt={p.title} style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} />
-                                    <div>
-                                      <div style={{ fontSize: 13, fontWeight: 700 }}>{p.title}</div>
-                                      <div style={{ fontSize: 11, color: "#64748b" }}>${p.price}</div>
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setBxgySelectedProducts(bxgySelectedProducts.filter(x => x.id !== p.id))}
-                                    style={{ background: "none", border: "none", color: "#ef4444", fontSize: 16, cursor: "pointer" }}
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                            <div>
-                              <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Buy Quantity (X)</label>
-                              <input
-                                type="number"
-                                value={bxgyBuyQty}
-                                onChange={(e) => setBxgyBuyQty(parseInt(e.target.value, 10) || 1)}
-                                style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 14 }}
-                              />
-                            </div>
-                            <div>
-                              <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Get Free Quantity (Y)</label>
-                              <input
-                                type="number"
-                                value={bxgyGetQty}
-                                onChange={(e) => setBxgyGetQty(parseInt(e.target.value, 10) || 1)}
-                                style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 14 }}
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Deal Badge Text</label>
-                            <input
-                              type="text"
-                              value={bxgyBadge}
-                              onChange={(e) => setBxgyBadge(e.target.value)}
-                              style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 14 }}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Accent Color</label>
-                            <input
-                              type="color"
-                              value={bxgyColor}
-                              onChange={(e) => setBxgyColor(e.target.value)}
-                              style={{ width: 60, height: 36, border: "none", cursor: "pointer" }}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* STEP BUNDLE BUILDER */}
-                      {activeBuilder === "step" && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                          <div>
-                            <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Campaign Title</label>
-                            <input
-                              type="text"
-                              value={stepTitle}
-                              onChange={(e) => setStepTitle(e.target.value)}
-                              style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 14 }}
-                            />
-                          </div>
-
-                          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                            <div style={{ background: "#f8fafc", padding: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                <strong style={{ fontSize: 13 }}>Step 1 Product: {step1Products[0]?.title || "None"}</strong>
-                                <button type="button" onClick={() => openProductPicker("step1")} style={{ background: "#0f172a", color: "#fff", border: "none", padding: "4px 10px", borderRadius: 4, fontSize: 11, cursor: "pointer" }}>Change</button>
-                              </div>
-                            </div>
-                            <div style={{ background: "#f8fafc", padding: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                <strong style={{ fontSize: 13 }}>Step 2 Product: {step2Products[0]?.title || "None"}</strong>
-                                <button type="button" onClick={() => openProductPicker("step2")} style={{ background: "#0f172a", color: "#fff", border: "none", padding: "4px 10px", borderRadius: 4, fontSize: 11, cursor: "pointer" }}>Change</button>
-                              </div>
-                            </div>
-                            <div style={{ background: "#f8fafc", padding: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                <strong style={{ fontSize: 13 }}>Step 3 Product: {step3Products[0]?.title || "None"}</strong>
-                                <button type="button" onClick={() => openProductPicker("step3")} style={{ background: "#0f172a", color: "#fff", border: "none", padding: "4px 10px", borderRadius: 4, fontSize: 11, cursor: "pointer" }}>Change</button>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Bundle Discount %</label>
-                            <input
-                              type="number"
-                              value={stepDiscountPercent}
-                              onChange={(e) => setStepDiscountPercent(parseInt(e.target.value, 10) || 15)}
-                              style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 14 }}
-                            />
-                          </div>
-
-                          <div>
-                            <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Accent Color</label>
-                            <input
-                              type="color"
-                              value={stepColor}
-                              onChange={(e) => setStepColor(e.target.value)}
-                              style={{ width: 60, height: 36, border: "none", cursor: "pointer" }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    {/* RIGHT COLUMN: LIVE INTERACTIVE PREVIEW */}
-                    <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 16, padding: 24, position: "sticky", top: 20 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: "#64748b", textTransform: "uppercase", marginBottom: 16, display: "flex", alignItems: "center", gap: 6 }}>
-                        <span>👁</span> Storefront Live Preview
-                      </div>
-
-                      {/* Volume Discount Preview */}
-                      {activeBuilder === "volume" && (
-                        <div style={{ border: `2px solid ${volColor}`, borderRadius: 14, padding: 18, background: "#fafafa" }}>
-                          <h4 style={{ margin: "0 0 12px 0", fontSize: 16, fontWeight: 800 }}>Choose Quantity:</h4>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                            {volTiers.map((t, idx) => (
-                              <div
-                                key={idx}
-                                style={{
-                                  border: `1.5px solid ${idx === 1 ? volColor : "#e2e8f0"}`,
-                                  background: idx === 1 ? "#fffbeb" : "#ffffff",
-                                  borderRadius: 10,
-                                  padding: 12,
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                }}
-                              >
-                                <div>
-                                  <div style={{ fontWeight: 800, fontSize: 14 }}>{t.quantity}x {t.label}</div>
-                                  {t.discountPercent > 0 && (
-                                    <div style={{ fontSize: 12, color: volColor, fontWeight: 700 }}>Save {t.discountPercent}%</div>
-                                  )}
-                                </div>
-                                <span style={{ background: volColor, color: "#ffffff", fontSize: 10, padding: "2px 8px", borderRadius: 9999, fontWeight: 800 }}>
-                                  {t.badge}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                          <button style={{ width: "100%", marginTop: 16, padding: 12, background: "#0f172a", color: "#ffffff", borderRadius: 8, border: "none", fontWeight: 800 }}>
-                            Add to Cart
-                          </button>
-                        </div>
-                      )}
-
-                      {/* BXGY Preview */}
-                      {activeBuilder === "bxgy" && (
-                        <div style={{ border: `2px solid ${bxgyColor}`, borderRadius: 14, padding: 18, background: "#fafafa" }}>
-                          <div style={{ background: bxgyColor, color: "#fff", padding: "6px 12px", borderRadius: 6, fontWeight: 800, fontSize: 12, textAlign: "center", marginBottom: 12 }}>
-                            ★ {bxgyBadge}
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-                            <img src={bxgySelectedProducts[0]?.image} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover" }} />
-                            <div>
-                              <div style={{ fontWeight: 800, fontSize: 14 }}>{bxgySelectedProducts[0]?.title}</div>
-                              <div style={{ fontSize: 12, color: "#64748b" }}>Buy {bxgyBuyQty}, Get {bxgyGetQty} FREE!</div>
-                            </div>
-                          </div>
-                          <button style={{ width: "100%", padding: 12, background: "#0f172a", color: "#ffffff", borderRadius: 8, border: "none", fontWeight: 800 }}>
-                            Claim Deal & Add to Cart
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Step Bundle Preview */}
-                      {activeBuilder === "step" && (
-                        <div style={{ border: `2px solid ${stepColor}`, borderRadius: 14, padding: 18, background: "#fafafa" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                            <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>Complete 3-Step Bundle</h4>
-                            <span style={{ color: stepColor, fontWeight: 800, fontSize: 12 }}>{stepDiscountPercent}% OFF</span>
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-                            <div style={{ background: "#ffffff", padding: 8, borderRadius: 6, fontSize: 12 }}>1. {step1Products[0]?.title} ($45)</div>
-                            <div style={{ background: "#ffffff", padding: 8, borderRadius: 6, fontSize: 12 }}>2. {step2Products[0]?.title} ($35)</div>
-                            <div style={{ background: "#ffffff", padding: 8, borderRadius: 6, fontSize: 12 }}>3. {step3Products[0]?.title} ($20)</div>
-                          </div>
-                          <button style={{ width: "100%", padding: 12, background: stepColor, color: "#ffffff", borderRadius: 8, border: "none", fontWeight: 800 }}>
-                            Add Complete Bundle to Cart
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  {activeBuilder === "step" && (
+                    <StepBundleBuilder
+                      title={stepTitle}
+                      setTitle={setStepTitle}
+                      step1Products={step1Products}
+                      step2Products={step2Products}
+                      step3Products={step3Products}
+                      discountPercent={stepDiscountPercent}
+                      setDiscountPercent={setStepDiscountPercent}
+                      color={stepColor}
+                      setColor={setStepColor}
+                      onOpenProductPicker={(step) => openProductPicker(step)}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -1116,9 +787,7 @@ export default function StandalonePortal() {
             <div style={{ maxWidth: 680 }}>
               <div style={{ marginBottom: 24 }}>
                 <h2 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px 0" }}>Storefront & App Settings</h2>
-                <p style={{ color: "#64748b", margin: 0, fontSize: 15 }}>
-                  Configure theme script injections, WASM discount engines, and global preferences.
-                </p>
+                <p style={{ color: "#64748b", margin: 0, fontSize: 15 }}>Configure theme script injections, WASM discount engines, and global preferences.</p>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1128,9 +797,7 @@ export default function StandalonePortal() {
                       <strong style={{ fontSize: 15, color: "#0f172a" }}>Storefront App Embed</strong>
                       <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Injects bundle widget scripts into your active theme.</div>
                     </div>
-                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>
-                      ✓ Active
-                    </span>
+                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>✓ Active</span>
                   </div>
                 </div>
 
@@ -1140,9 +807,7 @@ export default function StandalonePortal() {
                       <strong style={{ fontSize: 15, color: "#0f172a" }}>Cart Transform WASM Engine</strong>
                       <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Shopify Functions runtime for checkout bundle price sync.</div>
                     </div>
-                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>
-                      ✓ Synced (&lt;4ms)
-                    </span>
+                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>✓ Synced (&lt;4ms)</span>
                   </div>
                 </div>
 
@@ -1152,9 +817,7 @@ export default function StandalonePortal() {
                       <strong style={{ fontSize: 15, color: "#0f172a" }}>PostgreSQL Database Live Sync</strong>
                       <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Multi-tenant cloud persistence via Render PostgreSQL.</div>
                     </div>
-                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>
-                      ✓ Connected
-                    </span>
+                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>✓ Connected</span>
                   </div>
                 </div>
               </div>
@@ -1163,125 +826,15 @@ export default function StandalonePortal() {
         </div>
       </main>
 
-      {/* OPTION 1: IN-APP PRODUCT SELECTOR MODAL */}
-      {showProductModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}
-        >
-          <div
-            style={{
-              background: "#ffffff",
-              borderRadius: 16,
-              width: "100%",
-              maxWidth: 580,
-              maxHeight: "80vh",
-              display: "flex",
-              flexDirection: "column",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              overflow: "hidden",
-            }}
-          >
-            {/* Modal Header */}
-            <div style={{ padding: "18px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Select Products from Store</h3>
-                <span style={{ fontSize: 12, color: "#64748b" }}>{shop}</span>
-              </div>
-              <button
-                onClick={() => setShowProductModal(false)}
-                style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#64748b" }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Search Input */}
-            <div style={{ padding: "14px 24px", borderBottom: "1px solid #f1f5f9" }}>
-              <input
-                type="text"
-                placeholder="Search products by title..."
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 14 }}
-              />
-            </div>
-
-            {/* Product List */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "12px 24px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {filteredProducts.map((p) => {
-                const isSelected =
-                  modalTargetField === "vol" ? volSelectedProducts.some(x => x.id === p.id) :
-                  modalTargetField === "bxgy" ? bxgySelectedProducts.some(x => x.id === p.id) :
-                  modalTargetField === "step1" ? step1Products.some(x => x.id === p.id) :
-                  modalTargetField === "step2" ? step2Products.some(x => x.id === p.id) :
-                  modalTargetField === "step3" ? step3Products.some(x => x.id === p.id) : false;
-
-                return (
-                  <div
-                    key={p.id}
-                    onClick={() => handleToggleProductInModal(p)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: `1.5px solid ${isSelected ? "#0f172a" : "#e2e8f0"}`,
-                      background: isSelected ? "#f8fafc" : "#ffffff",
-                      cursor: "pointer",
-                      transition: "all 0.1s ease",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <img src={p.image} alt={p.title} style={{ width: 42, height: 42, borderRadius: 6, objectFit: "cover" }} />
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700 }}>{p.title}</div>
-                        <div style={{ fontSize: 12, color: "#64748b" }}>${p.price}</div>
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: 6,
-                        border: `2px solid ${isSelected ? "#0f172a" : "#cbd5e1"}`,
-                        background: isSelected ? "#0f172a" : "transparent",
-                        color: "#ffffff",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 12,
-                        fontWeight: 900,
-                      }}
-                    >
-                      {isSelected && "✓"}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Modal Footer */}
-            <div style={{ padding: "14px 24px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setShowProductModal(false)}
-                style={{ background: "#0f172a", color: "#ffffff", padding: "10px 24px", borderRadius: 8, border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MODULAR IN-APP PRODUCT SELECTOR MODAL */}
+      <ProductSelectorModal
+        show={showProductModal}
+        onClose={() => setShowProductModal(false)}
+        products={products}
+        selectedProducts={getSelectedModalProducts()}
+        onToggleProduct={handleToggleProductInModal}
+        shop={shop}
+      />
     </div>
   );
 }
