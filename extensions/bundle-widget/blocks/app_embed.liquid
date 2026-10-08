@@ -159,6 +159,14 @@
   }
 </style>
 
+{% if product %}
+  <!-- Standalone Widget Fallbacks for direct .smart-bundle-widget embeds -->
+  <div id="sb-standalone-widgets-pool" style="display: none !important;">
+    {% render 'bxgy_snippet', widget_instance_id: 'standalone', is_standalone: true %}
+    {% render 'volume_discount_snippet', widget_instance_id: 'standalone', is_standalone: true %}
+  </div>
+{% endif %}
+
 <script>
 (function() {
   function formatMoney(cents) {
@@ -419,7 +427,7 @@
     }
   }
 
-  // Universal Smart Bundle Embed Relocator
+  // Universal Smart Bundle Embed Relocator with Standalone Support
   function relocateCustomWidgets() {
     try {
       const embeds = document.querySelectorAll('.smart-bundle-widget[data-widget-type]');
@@ -427,18 +435,40 @@
         const type = embed.getAttribute('data-widget-type');
         let widget = null;
         if (type === 'bxgy') {
-          widget = document.querySelector('.bxgy-widget-container[data-bxgy-widget]');
+          // Look for on-page section block first
+          widget = document.querySelector('.bxgy-widget-container[data-bxgy-widget]:not([data-standalone="true"])');
+          // If no on-page section block, use standalone fallback
+          if (!widget) {
+            widget = document.querySelector('.bxgy-widget-container[data-standalone="true"]');
+          } else {
+            const standalone = document.querySelector('.bxgy-widget-container[data-standalone="true"]');
+            if (standalone && standalone.parentElement && standalone.parentElement.id === 'sb-standalone-widgets-pool') {
+              standalone.remove();
+            }
+          }
         } else if (type === 'volume-discount') {
-          widget = document.querySelector('[id^="vd-widget-"]');
+          // Look for on-page section block first
+          widget = document.querySelector('.vd-widget-container:not([data-standalone="true"])');
+          // If no on-page section block, use standalone fallback
+          if (!widget) {
+            widget = document.querySelector('.vd-widget-container[data-standalone="true"]');
+          } else {
+            const standalone = document.querySelector('.vd-widget-container[data-standalone="true"]');
+            if (standalone && standalone.parentElement && standalone.parentElement.id === 'sb-standalone-widgets-pool') {
+              standalone.remove();
+            }
+          }
         } else if (type === 'multi-collection') {
           widget = document.querySelector('.smart-bundle-container[id^="smart-bundle-"]');
         }
+
         if (widget && widget.parentElement !== embed) {
           embed.innerHTML = '';
           embed.appendChild(widget);
           widget.style.display = 'block';
         }
       });
+      document.dispatchEvent(new CustomEvent('smart-bundle:relocated'));
     } catch(e) {}
   }
 
