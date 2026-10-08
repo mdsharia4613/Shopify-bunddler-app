@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useLoaderData, useFetcher } from "react-router";
 import prisma from "../db.server";
 
@@ -394,9 +394,9 @@ export default function StandalonePortal() {
   const [volSelectedProducts, setVolSelectedProducts] = useState(products.slice(0, 1));
   const [volSelectedCollections, setVolSelectedCollections] = useState([]);
   const [volTiers, setVolTiers] = useState([
-    { quantity: 1, discountPercent: 0, label: "Single Unit", badge: "STANDARD" },
-    { quantity: 2, discountPercent: 15, label: "Duo Pack", badge: "MOST POPULAR" },
-    { quantity: 3, discountPercent: 20, label: "Trio Pack", badge: "BEST VALUE" },
+    { id: 1, title: "Single Unit", label: "Single Unit", quantity: 1, qty: 1, discountPercent: 0, discount: 0, badge: "STANDARD", popularBadge: "STANDARD" },
+    { id: 2, title: "Duo Pack", label: "Duo Pack", quantity: 2, qty: 2, discountPercent: 15, discount: 15, badge: "MOST POPULAR", popularBadge: "MOST POPULAR" },
+    { id: 3, title: "Trio Pack", label: "Trio Pack", quantity: 3, qty: 3, discountPercent: 20, discount: 20, badge: "BEST VALUE", popularBadge: "BEST VALUE" },
   ]);
   const [volColor, setVolColor] = useState("#f59e0b");
 
@@ -433,9 +433,9 @@ export default function StandalonePortal() {
 
   // EXACTLY 3 Main Navigation Links
   const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: "📊" },
-    { id: "templates", label: "Templates", icon: "🎨" },
-    { id: "settings", label: "Settings", icon: "⚙️" },
+    { id: "dashboard", label: "Dashboard", icon: "ðŸ“Š" },
+    { id: "templates", label: "Templates", icon: "ðŸŽ¨" },
+    { id: "settings", label: "Settings", icon: "âš™ï¸" },
   ];
 
   const handleOpenBuilder = (type, existingBundle = null) => {
@@ -637,7 +637,7 @@ export default function StandalonePortal() {
       <aside style={{ width: 250, background: "#0f172a", color: "#ffffff", display: "flex", flexDirection: "column", flexShrink: 0, borderRight: "1px solid #1e293b" }}>
         <div style={{ padding: "24px 20px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid #1e293b" }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #f59e0b, #ef4444)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-            ⚡
+            âš¡
           </div>
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.01em" }}>Smart Bundles</div>
@@ -653,10 +653,10 @@ export default function StandalonePortal() {
             style={{ background: "#1e293b", border: "1px solid #334155", padding: "8px 12px", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13, fontWeight: 600 }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
-              <span style={{ color: "#10b981" }}>●</span>
+              <span style={{ color: "#10b981" }}>â—</span>
               <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 150 }}>{shop}</span>
             </div>
-            <span style={{ fontSize: 10, color: "#94a3b8" }}>▼</span>
+            <span style={{ fontSize: 10, color: "#94a3b8" }}>â–¼</span>
           </div>
 
           {storeDropdown && (
@@ -667,7 +667,7 @@ export default function StandalonePortal() {
                   style={{ padding: "6px 10px", fontSize: 12, color: s.shop === shop ? "#10b981" : "#cbd5e1", fontWeight: s.shop === shop ? 700 : 500, cursor: "pointer", borderRadius: 4 }}
                   onClick={() => setStoreDropdown(false)}
                 >
-                  {s.shop} {s.shop === shop && "✓"}
+                  {s.shop} {s.shop === shop && "âœ“"}
                 </div>
               ))}
             </div>
@@ -729,7 +729,7 @@ export default function StandalonePortal() {
 
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0", padding: "4px 10px", borderRadius: 9999, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
-              <span>●</span> Storefront Engine Synced
+              <span>â—</span> Storefront Engine Synced
             </div>
             <a
               href={`https://${shop}`}
@@ -738,7 +738,7 @@ export default function StandalonePortal() {
               style={{ background: "#0f172a", color: "#ffffff", textDecoration: "none", padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}
             >
               <span>View Storefront</span>
-              <span style={{ fontSize: 11 }}>↗</span>
+              <span style={{ fontSize: 11 }}>â†—</span>
             </a>
           </div>
         </header>
@@ -829,7 +829,7 @@ export default function StandalonePortal() {
                                   }}
                                   style={{ background: "none", border: "none", color: "#ef4444", fontSize: 14, cursor: "pointer", padding: "4px" }}
                                 >
-                                  🗑
+                                  ðŸ—‘
                                 </button>
                               </div>
                             </td>
@@ -867,7 +867,7 @@ export default function StandalonePortal() {
                     <div style={{ background: "#ffffff", border: "2px solid #e2e8f0", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                          <span style={{ fontSize: 28 }}>🪜</span>
+                          <span style={{ fontSize: 28 }}>ðŸªœ</span>
                           <div>
                             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Multi-Collection Step Bundle</h3>
                             <span style={{ fontSize: 11, background: "#dbeafe", color: "#1e40af", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>DYNAMIC STEPS & COLLECTIONS</span>
@@ -890,7 +890,7 @@ export default function StandalonePortal() {
                         style={{ background: "#0f172a", color: "#ffffff", padding: "12px 20px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                       >
                         <span>Configure Step Bundle</span>
-                        <span>→</span>
+                        <span>â†’</span>
                       </button>
                     </div>
 
@@ -898,7 +898,7 @@ export default function StandalonePortal() {
                     <div style={{ background: "#ffffff", border: "2px solid #e2e8f0", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                          <span style={{ fontSize: 28 }}>🎁</span>
+                          <span style={{ fontSize: 28 }}>ðŸŽ</span>
                           <div>
                             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Buy X Get Y (BXGY) Deals</h3>
                             <span style={{ fontSize: 11, background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>HIGH CONVERSION</span>
@@ -910,7 +910,7 @@ export default function StandalonePortal() {
                         <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: 10, padding: 12, marginBottom: 20 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>Storefront Widget Preview:</div>
                           <div style={{ fontSize: 12, color: "#475569", display: "flex", flexDirection: "column", gap: 4 }}>
-                            <div style={{ color: "#10b981", fontWeight: 700 }}>🎁 BUY 1 GET 1 FREE (SAVE 50%)</div>
+                            <div style={{ color: "#10b981", fontWeight: 700 }}>ðŸŽ BUY 1 GET 1 FREE (SAVE 50%)</div>
                             <div>All Products / Specific Items / Collections</div>
                           </div>
                         </div>
@@ -920,7 +920,7 @@ export default function StandalonePortal() {
                         style={{ background: "#0f172a", color: "#ffffff", padding: "12px 20px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                       >
                         <span>Configure BXGY Deal</span>
-                        <span>→</span>
+                        <span>â†’</span>
                       </button>
                     </div>
 
@@ -928,7 +928,7 @@ export default function StandalonePortal() {
                     <div style={{ background: "#ffffff", border: "2px solid #e2e8f0", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                          <span style={{ fontSize: 28 }}>📦</span>
+                          <span style={{ fontSize: 28 }}>ðŸ“¦</span>
                           <div>
                             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Volume Quantity Discounts</h3>
                             <span style={{ fontSize: 11, background: "#ecfdf5", color: "#065f46", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>TIERED PACKS</span>
@@ -951,7 +951,7 @@ export default function StandalonePortal() {
                         style={{ background: "#0f172a", color: "#ffffff", padding: "12px 20px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                       >
                         <span>Configure Volume Discount</span>
-                        <span>→</span>
+                        <span>â†’</span>
                       </button>
                     </div>
                   </div>
@@ -966,7 +966,7 @@ export default function StandalonePortal() {
                       onClick={() => setActiveBuilder(null)}
                       style={{ background: "#ffffff", border: "1px solid #cbd5e1", padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
                     >
-                      <span>← Back to Templates</span>
+                      <span>â† Back to Templates</span>
                     </button>
 
                     <button
@@ -977,7 +977,7 @@ export default function StandalonePortal() {
                       }}
                       style={{ background: "#10b981", color: "#ffffff", border: "none", padding: "10px 24px", borderRadius: 8, fontSize: 14, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 10px rgba(16, 185, 129, 0.3)" }}
                     >
-                      💾 Save & Publish to Storefront
+                      ðŸ’¾ Save & Publish to Storefront
                     </button>
                   </div>
 
@@ -1057,7 +1057,7 @@ export default function StandalonePortal() {
                       <strong style={{ fontSize: 15, color: "#0f172a" }}>Storefront App Embed</strong>
                       <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Injects bundle widget scripts into your active theme.</div>
                     </div>
-                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>● Active</span>
+                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>â— Active</span>
                   </div>
                 </div>
 
@@ -1067,7 +1067,7 @@ export default function StandalonePortal() {
                       <strong style={{ fontSize: 15, color: "#0f172a" }}>Cart Transform WASM Engine</strong>
                       <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Shopify Functions runtime for checkout bundle price sync.</div>
                     </div>
-                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>● Synced (&lt;4ms)</span>
+                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>â— Synced (&lt;4ms)</span>
                   </div>
                 </div>
 
@@ -1077,7 +1077,7 @@ export default function StandalonePortal() {
                       <strong style={{ fontSize: 15, color: "#0f172a" }}>PostgreSQL Database Live Sync</strong>
                       <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Multi-tenant cloud persistence via Render PostgreSQL.</div>
                     </div>
-                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>● Connected</span>
+                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>â— Connected</span>
                   </div>
                 </div>
               </div>

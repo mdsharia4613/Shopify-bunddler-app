@@ -1,4 +1,6 @@
-﻿export default function VolumeDiscountBuilder({
+import { useState } from "react";
+
+export default function VolumeDiscountBuilder({
   title,
   setTitle,
   appliesTo,
@@ -14,16 +16,24 @@
   onOpenProductPicker,
   onOpenCollectionPicker,
 }) {
+  const [previewTierIdx, setPreviewTierIdx] = useState(1);
+
   const handleAddTier = () => {
-    const nextQty = tiers.length > 0 ? Math.max(...tiers.map((t) => t.quantity)) + 1 : 1;
-    const nextDisc = tiers.length > 0 ? Math.min(Math.max(...tiers.map((t) => t.discountPercent)) + 5, 80) : 10;
+    const nextQty = tiers.length > 0 ? Math.max(...tiers.map((t) => t.quantity || t.qty || 1)) + 1 : 1;
+    const nextDisc = tiers.length > 0 ? Math.min(Math.max(...tiers.map((t) => t.discountPercent || t.discount || 0)) + 5, 80) : 10;
+    const nextTitle = `${nextQty} Units Pack`;
     setTiers([
       ...tiers,
       {
+        id: Date.now(),
+        title: nextTitle,
+        label: nextTitle,
         quantity: nextQty,
+        qty: nextQty,
         discountPercent: nextDisc,
-        label: `${nextQty} Units Pack`,
+        discount: nextDisc,
         badge: `SAVE ${nextDisc}%`,
+        popularBadge: `SAVE ${nextDisc}%`,
       },
     ]);
   };
@@ -33,7 +43,33 @@
       alert("At least 1 tier is required.");
       return;
     }
-    setTiers(tiers.filter((_, i) => i !== idx));
+    const next = tiers.filter((_, i) => i !== idx);
+    setTiers(next);
+    if (previewTierIdx >= next.length) {
+      setPreviewTierIdx(0);
+    }
+  };
+
+  const handleUpdateTier = (idx, field, value) => {
+    const next = [...tiers];
+    if (field === "title") {
+      next[idx].title = value;
+      next[idx].label = value;
+    } else if (field === "quantity") {
+      const q = Math.max(1, parseInt(value, 10) || 1);
+      next[idx].quantity = q;
+      next[idx].qty = q;
+    } else if (field === "discountPercent") {
+      const d = Math.max(0, Math.min(100, parseInt(value, 10) || 0));
+      next[idx].discountPercent = d;
+      next[idx].discount = d;
+    } else if (field === "badge") {
+      next[idx].badge = value;
+      next[idx].popularBadge = value;
+    } else {
+      next[idx][field] = value;
+    }
+    setTiers(next);
   };
 
   return (
@@ -55,7 +91,7 @@
             />
           </div>
 
-          {/* Applies To Selection (All Products vs Specific Products vs Specific Collections) */}
+          {/* Applies To Selection */}
           <div>
             <label style={{ fontSize: 13, fontWeight: 700, color: "#334155", display: "block", marginBottom: 8 }}>
               Applies To
@@ -121,7 +157,7 @@
                   {selectedProducts.map((p) => (
                     <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#ffffff", padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <img src={p.image} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover" }} />
+                        <img src={p.image || "https://placehold.co/32x32?text=P"} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover" }} />
                         <span style={{ fontSize: 13, fontWeight: 600 }}>{p.title}</span>
                       </div>
                       <button
@@ -163,7 +199,7 @@
                   {selectedCollections.map((c) => (
                     <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#ffffff", padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span>📁</span>
+                        <span style={{ fontSize: 18 }}>📁</span>
                         <span style={{ fontSize: 13, fontWeight: 600 }}>{c.title}</span>
                       </div>
                       <button
@@ -180,70 +216,182 @@
             </div>
           )}
 
-          {/* Tiers Configuration */}
+          {/* Quantity Discount Tiers (Dynamic Title & Quantity) */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>Quantity Discount Tiers</label>
+              <div>
+                <label style={{ fontSize: 14, fontWeight: 800, color: "#0f172a" }}>
+                  Quantity Discount Tiers ({tiers.length})
+                </label>
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                  Set a dynamic title / label, required quantity, discount %, and optional badge for each tier.
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={handleAddTier}
-                style={{ background: "#0f172a", color: "#ffffff", border: "none", padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                style={{
+                  background: "#0f172a",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "7px 14px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
               >
                 + Add Tier
               </button>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {tiers.map((tier, idx) => (
-                <div key={idx} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr auto", gap: 10, alignItems: "center", background: "#f8fafc", padding: 12, borderRadius: 10, border: "1px solid #e2e8f0" }}>
-                  <div>
-                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Quantity</div>
-                    <input
-                      type="number"
-                      value={tier.quantity}
-                      onChange={(e) => {
-                        const next = [...tiers];
-                        next[idx].quantity = parseInt(e.target.value, 10) || 1;
-                        setTiers(next);
-                      }}
-                      style={{ width: "100%", padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Discount %</div>
-                    <input
-                      type="number"
-                      value={tier.discountPercent}
-                      onChange={(e) => {
-                        const next = [...tiers];
-                        next[idx].discountPercent = parseInt(e.target.value, 10) || 0;
-                        setTiers(next);
-                      }}
-                      style={{ width: "100%", padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Badge / Label</div>
-                    <input
-                      type="text"
-                      value={tier.badge}
-                      onChange={(e) => {
-                        const next = [...tiers];
-                        next[idx].badge = e.target.value;
-                        setTiers(next);
-                      }}
-                      style={{ width: "100%", padding: "6px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTier(idx)}
-                    style={{ background: "none", border: "none", color: "#ef4444", fontSize: 16, cursor: "pointer", padding: "4px" }}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {tiers.map((tier, idx) => {
+                const currentTitle = tier.title || tier.label || `${tier.quantity || 1} Units Pack`;
+                const currentQty = tier.quantity ?? tier.qty ?? 1;
+                const currentDisc = tier.discountPercent ?? tier.discount ?? 0;
+                const currentBadge = tier.badge || tier.popularBadge || "";
+
+                return (
+                  <div
+                    key={tier.id || idx}
+                    style={{
+                      background: "#f8fafc",
+                      padding: 16,
+                      borderRadius: 12,
+                      border: "1px solid #e2e8f0",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12,
+                    }}
                   >
-                    🗑
-                  </button>
-                </div>
-              ))}
+                    {/* Tier Card Header */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span
+                          style={{
+                            background: "#0f172a",
+                            color: "#ffffff",
+                            fontSize: 11,
+                            fontWeight: 800,
+                            padding: "2px 8px",
+                            borderRadius: 6,
+                          }}
+                        >
+                          TIER {idx + 1}
+                        </span>
+                        {currentDisc > 0 ? (
+                          <span style={{ background: "#dcfce7", color: "#15803d", fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 999 }}>
+                            SAVE {currentDisc}%
+                          </span>
+                        ) : (
+                          <span style={{ background: "#f1f5f9", color: "#64748b", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999 }}>
+                            STANDARD
+                          </span>
+                        )}
+                      </div>
+
+                      {tiers.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTier(idx)}
+                          style={{ background: "none", border: "none", color: "#ef4444", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                        >
+                          🗑 Remove
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Row 1: Dynamic Title & Quantity */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 10 }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>
+                          Tier Title / Label (Dynamic)
+                        </label>
+                        <input
+                          type="text"
+                          value={currentTitle}
+                          placeholder="e.g. Single, Duo Pack, Trio Pack"
+                          onChange={(e) => handleUpdateTier(idx, "title", e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "8px 10px",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: 6,
+                            fontSize: 13,
+                            fontWeight: 700,
+                            background: "#ffffff",
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>
+                          Quantity (Units)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={currentQty}
+                          onChange={(e) => handleUpdateTier(idx, "quantity", e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "8px 10px",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: 6,
+                            fontSize: 13,
+                            fontWeight: 700,
+                            background: "#ffffff",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 2: Discount % & Badge */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 10 }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>
+                          Discount %
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={currentDisc}
+                          onChange={(e) => handleUpdateTier(idx, "discountPercent", e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "8px 10px",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: 6,
+                            fontSize: 13,
+                            fontWeight: 700,
+                            background: "#ffffff",
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>
+                          Badge Text (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. MOST POPULAR, BEST VALUE"
+                          value={currentBadge}
+                          onChange={(e) => handleUpdateTier(idx, "badge", e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "8px 10px",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: 6,
+                            fontSize: 13,
+                            background: "#ffffff",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -257,9 +405,9 @@
                 type="color"
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
-                style={{ width: 60, height: 36, border: "none", cursor: "pointer", borderRadius: 6 }}
+                style={{ width: 44, height: 44, border: "1px solid #cbd5e1", cursor: "pointer", borderRadius: 8, padding: 2 }}
               />
-              <span style={{ fontSize: 13, color: "#64748b", fontFamily: "monospace" }}>{color}</span>
+              <span style={{ fontSize: 13, color: "#64748b", fontFamily: "monospace", fontWeight: 700 }}>{color}</span>
             </div>
           </div>
         </div>
@@ -280,46 +428,86 @@
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {tiers.map((t, idx) => (
-              <div
-                key={idx}
-                style={{
-                  border: `1.5px solid ${idx === 1 ? color : "#e2e8f0"}`,
-                  background: idx === 1 ? "#fffbeb" : "#ffffff",
-                  borderRadius: 10,
-                  padding: 12,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  cursor: "pointer",
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: "#0f172a" }}>
-                    {t.quantity}x {t.label || `Quantity ${t.quantity}`}
-                  </div>
-                  {t.discountPercent > 0 ? (
-                    <div style={{ fontSize: 12, color: color, fontWeight: 700, marginTop: 2 }}>
-                      Save {t.discountPercent}% OFF
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>Regular Price</div>
-                  )}
-                </div>
-                <span
+            {tiers.map((t, idx) => {
+              const isSelected = previewTierIdx === idx;
+              const tierTitle = t.title || t.label || `${t.quantity || 1} Units Pack`;
+              const tierQty = t.quantity ?? t.qty ?? 1;
+              const tierDisc = t.discountPercent ?? t.discount ?? 0;
+              const tierBadge = t.badge || t.popularBadge;
+
+              return (
+                <div
+                  key={t.id || idx}
+                  onClick={() => setPreviewTierIdx(idx)}
                   style={{
-                    background: color,
-                    color: "#ffffff",
-                    fontSize: 10,
-                    padding: "3px 8px",
-                    borderRadius: 9999,
-                    fontWeight: 800,
+                    border: `2px solid ${isSelected ? color : "#e2e8f0"}`,
+                    background: isSelected ? "#fffbeb" : "#ffffff",
+                    borderRadius: 10,
+                    padding: "12px 14px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    cursor: "pointer",
+                    boxShadow: isSelected ? "0 4px 12px rgba(0,0,0,0.06)" : "none",
+                    transition: "all 0.15s ease",
                   }}
                 >
-                  {t.badge || `TIER ${idx + 1}`}
-                </span>
-              </div>
-            ))}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: "50%",
+                        border: `2px solid ${isSelected ? color : "#cbd5e1"}`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {isSelected && <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />}
+                    </div>
+
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: "#0f172a" }}>
+                        {tierTitle}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                        Buy {tierQty} Units {tierDisc > 0 ? `• Save ${tierDisc}% OFF` : "• Regular Price"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {tierBadge ? (
+                    <span
+                      style={{
+                        background: color,
+                        color: "#ffffff",
+                        fontSize: 10,
+                        padding: "3px 8px",
+                        borderRadius: 9999,
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {tierBadge}
+                    </span>
+                  ) : tierDisc > 0 ? (
+                    <span
+                      style={{
+                        background: "#dcfce7",
+                        color: "#15803d",
+                        fontSize: 10,
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        fontWeight: 800,
+                      }}
+                    >
+                      SAVE {tierDisc}%
+                    </span>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
 
           <button
@@ -327,7 +515,7 @@
             style={{
               width: "100%",
               marginTop: 18,
-              padding: 12,
+              padding: 13,
               background: "#0f172a",
               color: "#ffffff",
               borderRadius: 8,
