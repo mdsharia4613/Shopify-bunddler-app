@@ -4,10 +4,17 @@
 {% endcomment %}
 
 {% assign bundle_meta = app.metafields.smart_bundles.active_bundle.value %}
+{% if bundle_meta == blank %}
+  {% assign bundle_meta = shop.metafields.smart_bundles.active_bundle.value %}
+{% endif %}
+{% if bundle_meta == blank %}
+  {% assign bundle_meta = shop.metafields["$app:smart_bundles"].active_bundle.value %}
+{% endif %}
+
 {% assign display_heading = block.settings.heading %}
 {% assign display_discount = block.settings.discount_percent %}
 
-{% if bundle_meta %}
+{% if bundle_meta != blank %}
   {% if bundle_meta.title != blank %}
     {% assign display_heading = bundle_meta.title %}
   {% endif %}
@@ -28,6 +35,9 @@
     --sb-text: {{ block.settings.text_color }};
   "
 >
+  <script id="smart-bundle-meta-{{ block.id }}" type="application/json">
+    {{ bundle_meta | json }}
+  </script>
   <div class="smart-bundle-card">
     <!-- Header -->
     <div class="smart-bundle-header">
@@ -618,40 +628,73 @@
       });
     }
 
-    // Initialize bundle data from API or Metafield
+    // Initialize bundle data from Metafield or API
     async function initBundle() {
-      try {
-        const res = await fetch('/api/bundles');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.bundles && data.bundles.length > 0) {
-            const active = data.bundles[0];
-            discountPercent = parseFloat(active.discountPercent || 15);
-            container.dataset.discount = discountPercent;
-
-            const tEl = container.querySelector('.smart-bundle-title');
-            const bEl = container.querySelector('.smart-bundle-badge');
-            const sEl = container.querySelector('.smart-bundle-subtitle strong');
-            if (tEl && active.title) tEl.textContent = active.title;
-            if (bEl) bEl.textContent = `Bundle & Save ${discountPercent}%`;
-            if (sEl) sEl.textContent = `${discountPercent}% OFF`;
-
-            if (active.config && active.config.collectionRows && active.config.collectionRows.length > 0) {
-              bundleSteps = active.config.collectionRows.map((r, i) => ({
-                stepIndex: i,
-                collectionId: r.collectionId,
-                collectionTitle: r.collectionTitle || `Collection ${i + 1}`,
-                collectionHandle: r.collectionHandle || '',
-                selectedProduct: null
-              }));
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching bundles:', err);
+      // 1. Instant sync from Server-Rendered Shopify Metafield
+      const metaEl = document.getElementById('smart-bundle-meta-{{ block.id }}');
+      let metaData = null;
+      if (metaEl && metaEl.textContent) {
+        try { metaData = JSON.parse(metaEl.textContent); } catch (e) {}
       }
 
-      // Fallback steps if no collectionRows defined
+      if (metaData) {
+        if (metaData.title) {
+          const tEl = container.querySelector('.smart-bundle-title');
+          if (tEl) tEl.textContent = metaData.title;
+        }
+        if (metaData.discountPercent) {
+          discountPercent = parseFloat(metaData.discountPercent);
+          container.dataset.discount = discountPercent;
+          const bEl = container.querySelector('.smart-bundle-badge');
+          const sEl = container.querySelector('.smart-bundle-subtitle strong');
+          if (bEl) bEl.textContent = `Bundle & Save ${discountPercent}%`;
+          if (sEl) sEl.textContent = `${discountPercent}% OFF`;
+        }
+        if (metaData.collectionRows && Array.isArray(metaData.collectionRows) && metaData.collectionRows.length > 0) {
+          bundleSteps = metaData.collectionRows.map((r, i) => ({
+            stepIndex: i,
+            collectionId: r.collectionId,
+            collectionTitle: r.collectionTitle || `Collection ${i + 1}`,
+            collectionHandle: r.collectionHandle || '',
+            selectedProduct: null
+          }));
+        }
+      }
+
+      // 2. If no metafield collectionRows found, try API
+      if (bundleSteps.length === 0) {
+        try {
+          const res = await fetch('/api/bundles');
+          if (res.ok) {
+            const data = await res.json();
+            const active = data.bundles?.find(b => b.strategy === 'Multi-Collection Complete Bundle') || data.bundles?.[0];
+            if (active) {
+              discountPercent = parseFloat(active.discountPercent || 15);
+              container.dataset.discount = discountPercent;
+              const tEl = container.querySelector('.smart-bundle-title');
+              const bEl = container.querySelector('.smart-bundle-badge');
+              const sEl = container.querySelector('.smart-bundle-subtitle strong');
+              if (tEl && active.title) tEl.textContent = active.title;
+              if (bEl) bEl.textContent = `Bundle & Save ${discountPercent}%`;
+              if (sEl) sEl.textContent = `${discountPercent}% OFF`;
+
+              if (active.config && active.config.collectionRows && active.config.collectionRows.length > 0) {
+                bundleSteps = active.config.collectionRows.map((r, i) => ({
+                  stepIndex: i,
+                  collectionId: r.collectionId,
+                  collectionTitle: r.collectionTitle || `Collection ${i + 1}`,
+                  collectionHandle: r.collectionHandle || '',
+                  selectedProduct: null
+                }));
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching bundles:', err);
+        }
+      }
+
+      // 3. Fallback steps only if absolutely no data exists
       if (bundleSteps.length === 0) {
         bundleSteps = [
           { stepIndex: 0, collectionTitle: 'Collection 1', collectionHandle: 'collection-1', selectedProduct: null },

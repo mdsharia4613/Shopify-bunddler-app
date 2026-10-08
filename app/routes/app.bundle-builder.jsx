@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLoaderData, useSearchParams, useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import { useLoaderData, useSearchParams, useNavigate, useSubmit, useActionData } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 
@@ -220,12 +220,64 @@ export const action = async ({ request }) => {
             console.log("Bundle parent product note:", pErr?.message);
         }
 
-        const shopRes = await admin.graphql(`query { shop { id } }`);
-        const shopJson = await shopRes.json();
-        const shopId = shopJson.data?.shop?.id;
+        // Fetch App Installation ID and Shop ID
+        const infoRes = await admin.graphql(
+            `#graphql
+            query getInstallationAndShop {
+                currentAppInstallation {
+                    id
+                }
+                shop {
+                    id
+                }
+            }`
+        );
+        const infoJson = await infoRes.json();
+        const appInstallId = infoJson.data?.currentAppInstallation?.id;
+        const shopId = infoJson.data?.shop?.id;
 
+        const metafieldVal = JSON.stringify({
+            id: savedBundle.id,
+            title: savedBundle.title,
+            discountPercent: discountNum,
+            discountSummary: savedBundle.discount,
+            discountCode: discountCode,
+            parentVariantId: parentVariantId,
+            collectionRows: parsed?.collectionRows || [],
+            brandColor: parsed?.brandColor || "#f59e0b",
+            active: true,
+            updatedAt: new Date().toISOString(),
+        });
+
+        const metafields = [];
+        if (appInstallId) {
+            metafields.push({
+                ownerId: appInstallId,
+                namespace: "$app:smart_bundles",
+                key: "active_bundle",
+                type: "json",
+                value: metafieldVal,
+            });
+        }
         if (shopId) {
-            await admin.graphql(
+            metafields.push({
+                ownerId: shopId,
+                namespace: "$app:smart_bundles",
+                key: "active_bundle",
+                type: "json",
+                value: metafieldVal,
+            });
+            metafields.push({
+                ownerId: shopId,
+                namespace: "smart_bundles",
+                key: "active_bundle",
+                type: "json",
+                value: metafieldVal,
+            });
+        }
+
+        if (metafields.length > 0) {
+            const mRes = await admin.graphql(
                 `#graphql
                 mutation setBundleMetafield($metafields: [MetafieldsSetInput!]!) {
                     metafieldsSet(metafields: $metafields) {
@@ -236,28 +288,11 @@ export const action = async ({ request }) => {
                     }
                 }`,
                 {
-                    variables: {
-                        metafields: [
-                            {
-                                ownerId: shopId,
-                                namespace: "$app:smart_bundles",
-                                key: "active_bundle",
-                                type: "json",
-                                value: JSON.stringify({
-                                    id: savedBundle.id,
-                                    title: savedBundle.title,
-                                    discountPercent: discountNum,
-                                    discountSummary: savedBundle.discount,
-                                    discountCode: discountCode,
-                                    parentVariantId: parentVariantId,
-                                    collectionRows: parsed?.collectionRows || [],
-                                    updatedAt: new Date().toISOString(),
-                                }),
-                            },
-                        ],
-                    },
+                    variables: { metafields },
                 }
             );
+            const mJson = await mRes.json();
+            console.log("Metafield sync response:", JSON.stringify(mJson));
         }
     } catch (err) {
         console.error("Metafield sync error:", err);
@@ -270,6 +305,15 @@ export default function BundleBuilder() {
     const { collections, products, existingBundle } = useLoaderData();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const submit = useSubmit();
+    const actionData = useActionData();
+
+    useEffect(() => {
+        if (actionData?.success) {
+            setIsPublishing(false);
+            navigate("/app");
+        }
+    }, [actionData, navigate]);
 
     const brandColor = searchParams.get("color") || "#f59e0b";
 
@@ -375,7 +419,7 @@ export default function BundleBuilder() {
     };
 
     // পাবলিশ করা
-    const handlePublish = async () => {
+    const handlePublish = () => {
         setIsPublishing(true);
         const formData = new FormData();
         if (existingBundle) {
@@ -393,18 +437,7 @@ export default function BundleBuilder() {
         };
         formData.append("bundleConfig", JSON.stringify(bundleConfig));
 
-        const res = await fetch("/app/bundle-builder", {
-            method: "POST",
-            body: formData,
-        });
-
-        if (res.ok) {
-            alert(existingBundle ? "Bundle updated successfully! Redirecting to Dashboard..." : "Bundle published successfully! Redirecting to Dashboard...");
-            navigate("/app");
-        } else {
-            alert("Failed to save bundle. Please try again.");
-        }
-        setIsPublishing(false);
+        submit(formData, { method: "post" });
     };
 
     // প্রাইস ক্যালকুলেশন (ডায়নামিক)
