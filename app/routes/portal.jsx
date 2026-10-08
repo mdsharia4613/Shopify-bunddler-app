@@ -394,9 +394,45 @@ export default function StandalonePortal() {
   const [volSelectedProducts, setVolSelectedProducts] = useState(products.slice(0, 1));
   const [volSelectedCollections, setVolSelectedCollections] = useState([]);
   const [volTiers, setVolTiers] = useState([
-    { id: 1, title: "Single Unit", label: "Single Unit", quantity: 1, qty: 1, discountPercent: 0, discount: 0, badge: "STANDARD", popularBadge: "STANDARD" },
-    { id: 2, title: "Duo Pack", label: "Duo Pack", quantity: 2, qty: 2, discountPercent: 15, discount: 15, badge: "MOST POPULAR", popularBadge: "MOST POPULAR" },
-    { id: 3, title: "Trio Pack", label: "Trio Pack", quantity: 3, qty: 3, discountPercent: 20, discount: 20, badge: "BEST VALUE", popularBadge: "BEST VALUE" },
+    {
+      id: 1,
+      qty: 1,
+      quantity: 1,
+      pricingType: "full_price",
+      discount: 0,
+      discountPercent: 0,
+      title: "Single",
+      subtitle: "Standard price",
+      label: "",
+      saveTag: "",
+      popularBadge: "",
+    },
+    {
+      id: 2,
+      qty: 2,
+      quantity: 2,
+      pricingType: "percentage_off", discountValue: 15,
+      discount: 15,
+      discountPercent: 15,
+      title: "Duo",
+      subtitle: "You save 15%",
+      label: "SAVE $30.00",
+      saveTag: "SAVE $30.00",
+      popularBadge: "Most Popular",
+    },
+    {
+      id: 3,
+      qty: 3,
+      quantity: 3,
+      pricingType: "percentage_off", discountValue: 15,
+      discount: 20,
+      discountPercent: 20,
+      title: "Trio",
+      subtitle: "You save 20%",
+      label: "SAVE $60.00",
+      saveTag: "SAVE $60.00",
+      popularBadge: "",
+    },
   ]);
   const [volColor, setVolColor] = useState("#f59e0b");
 
@@ -452,7 +488,21 @@ export default function StandalonePortal() {
         if (parsed.appliesTo) setVolAppliesTo(parsed.appliesTo);
         if (parsed.selectedProducts) setVolSelectedProducts(parsed.selectedProducts);
         if (parsed.selectedCollections) setVolSelectedCollections(parsed.selectedCollections);
-        if (parsed.tiers) setVolTiers(parsed.tiers);
+        if (parsed.tiers && Array.isArray(parsed.tiers)) {
+          setVolTiers(parsed.tiers.map((t, i) => ({
+            id: t.id || i + 1,
+            qty: t.qty ?? t.quantity ?? (i + 1),
+            quantity: t.quantity ?? t.qty ?? (i + 1),
+            pricingType: (t.pricingType === "percentage" ? "percentage_off" : (t.pricingType || (t.discount > 0 || t.discountPercent > 0 ? "percentage_off" : "full_price"))), discountValue: (t.discountValue ?? t.discountPercent ?? t.discount ?? 0),
+            discount: t.discount ?? t.discountPercent ?? 0,
+            discountPercent: t.discountPercent ?? t.discount ?? 0,
+            title: t.title || (i === 0 ? "Single" : i === 1 ? "Duo" : i === 2 ? "Trio" : `Pack ${i + 1}`),
+            subtitle: t.subtitle || (t.discount > 0 || t.discountPercent > 0 ? `You save ${t.discount || t.discountPercent}%` : "Standard price"),
+            label: t.label || t.saveTag || "",
+            saveTag: t.saveTag || t.label || "",
+            popularBadge: t.popularBadge || t.badge || "",
+          })));
+        }
         if (parsed.accentColor) setVolColor(parsed.accentColor);
       } else if (type === "bxgy") {
         setBxgyTitle(existingBundle.title || "Buy X Get Y Special Deal");
