@@ -11,33 +11,87 @@ datasource db {
 }
 
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
 
+// 1. Merchant User Account (SaaS Portal User)
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  name         String?
+  role         String        @default("OWNER")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  storeMembers StoreMember[]
+}
+
+// 2. Connected Shopify Stores
+model ShopifyStore {
+  id           String        @id @default(uuid())
+  shop         String        @unique
+  storeName    String?
+  currency     String        @default("USD")
+  plan         String        @default("Free")
+  status       String        @default("ACTIVE")
+  installedAt  DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  members      StoreMember[]
+  bundles      Bundle[]
+  settings     StoreSetting?
+}
+
+// 3. User & Store Mapping (Multi-Store Membership)
+model StoreMember {
+  id        String       @id @default(uuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeId   String
+  store     ShopifyStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  role      String       @default("ADMIN")
+  createdAt DateTime     @default(now())
+
+  @@unique([userId, storeId])
+}
+
+// 4. Store Branding & Theme Settings
+model StoreSetting {
+  id           String       @id @default(uuid())
+  storeId      String       @unique
+  store        ShopifyStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  themeEmbedOn Boolean      @default(true)
+  accentColor  String       @default("#f59e0b")
+  cartLayout   String       @default("optionA")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+// 5. Bundle Data (Linked to ShopifyStore)
 model Bundle {
-  id           String   @id @default(uuid())
-  title        String
-  strategy     String
-  discount     String
-  products     String
-  salesCount   Int      @default(0)
-  revenue      Float    @default(0.0)
-  status       String   @default("Active")
-  createdAt    DateTime @default(now())
+  id         String        @id @default(uuid())
+  storeId    String?
+  store      ShopifyStore? @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  title      String
+  strategy   String
+  discount   String
+  products   String
+  salesCount Int           @default(0)
+  revenue    Float         @default(0.0)
+  status     String        @default("Active")
+  createdAt  DateTime      @default(now())
 }
