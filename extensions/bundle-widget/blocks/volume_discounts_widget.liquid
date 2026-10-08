@@ -8,6 +8,9 @@
 {% if product %}
   {% comment %} Read Published Volume Discount from App Metafield {% endcomment %}
   {% assign vd_meta = app.metafields.smart_bundles.active_volume_discount.value %}
+  {% if vd_meta == blank %}
+    {% assign vd_meta = shop.metafields.smart_bundles.active_volume_discount.value %}
+  {% endif %}
 
   {% comment %} Target Eligibility Check (All products / Selected products / Selected collections) {% endcomment %}
   {% assign is_eligible = false %}
