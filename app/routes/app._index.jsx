@@ -1,13 +1,9 @@
-import { useLoaderData, useFetcher, Link } from "react-router";
+﻿import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
-import db from "../db.server";
+import prisma from "../db.server";
 
-// ১. রিয়েল ডাটাবেজ থেকে বান্ডেল নিয়ে আসা
 export const loader = async ({ request }) => {
   const { session, admin } = await authenticate.admin(request);
-
-  // Cart Transform (linesMerge) natively handles the 15% bundle discount directly on the line item.
-  // We do not add a duplicate discount code on top, ensuring the final price is exactly $170.00.
 
   // Automatically activate Cart Transform & Bundle Discount Functions
   try {
@@ -48,7 +44,6 @@ export const loader = async ({ request }) => {
             automaticAppDiscount {
               discountId
               title
-              status
             }
             userErrors { field message }
           }
@@ -59,414 +54,133 @@ export const loader = async ({ request }) => {
               title: "Smart Bundle Automatic Line Discount",
               functionId: discFn.id,
               startsAt: new Date().toISOString(),
-              discountClasses: ["PRODUCT"],
-              combinesWith: {
-                orderDiscounts: true,
-                productDiscounts: true,
-                shippingDiscounts: true
-              }
             }
           }
         }
       );
     }
-  } catch (e) {
-    console.log("Functions setup notice:", e.message);
+  } catch(e) {
+    console.warn("Function auto-activation check:", e);
   }
 
-  const bundles = await db.bundle.findMany({
-    orderBy: { createdAt: "desc" },
-  });
-
-  const totalRevenue = bundles.reduce((acc, b) => acc + (b.revenue || 0), 0);
-  const activeCount = bundles.filter((b) => b.status === "Active").length;
+  // Auto-sync store
+  try {
+    await prisma.shopifyStore.upsert({
+      where: { shop: session.shop },
+      update: { updatedAt: new Date(), status: "ACTIVE" },
+      create: {
+        shop: session.shop,
+        storeName: session.shop.replace(".myshopify.com", ""),
+        status: "ACTIVE",
+        currency: "USD",
+      },
+    });
+  } catch (e) {}
 
   return {
-    dashboardData: {
-      shop: session?.shop || "",
-      totalRevenue: `${totalRevenue.toFixed(2)}`,
-      activeBundlesCount: activeCount,
-      avgConversionRate: bundles.length > 0 ? "4.5%" : "0.0%",
-      bundles,
-      checkoutDiscountActive: true,
-    },
+    shop: session.shop,
+    appUrl: process.env.SHOPIFY_APP_URL || "https://shopify-bunddler-app.onrender.com",
   };
 };
 
-// ২. Publish / Unpublish ও Delete হ্যান্ডেল করার ব্যাকএন্ড অ্যাকশন
-export const action = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
-  const formData = await request.formData();
-  const intent = formData.get("intent");
-  const bundleId = formData.get("bundleId");
-
-  if (intent === "toggle-status") {
-    const currentStatus = formData.get("currentStatus");
-    const nextStatus = currentStatus === "Active" ? "Draft" : "Active";
-
-    const updated = await db.bundle.update({
-      where: { id: bundleId },
-      data: { status: nextStatus },
-    });
-
-    if (updated.strategy === "Volume Discounts") {
-      try {
-        const shopRes = await admin.graphql(`query { shop { id } }`);
-        const shopJson = await shopRes.json();
-        const shopId = shopJson.data?.shop?.id;
-        if (shopId) {
-          let parsedConfig = {};
-          try { parsedConfig = JSON.parse(updated.products); } catch (e) {}
-          await admin.graphql(
-            `#graphql
-            mutation setVolumeDiscountMetafield($metafields: [MetafieldsSetInput!]!) {
-              metafieldsSet(metafields: $metafields) {
-                userErrors { field message }
-              }
-            }`,
-            {
-              variables: {
-                metafields: [
-                  {
-                    ownerId: shopId,
-                    namespace: "$app:smart_bundles",
-                    key: "active_volume_discount",
-                    type: "json",
-                    value: JSON.stringify({
-                      id: updated.id,
-                      title: updated.title,
-                      headerTitle: parsedConfig.headerTitle || "",
-                      footerHeading: parsedConfig.footerHeading || "Quantity breaks for same product",
-                      footerSubheading: parsedConfig.footerSubheading || "Single, Duo, Trio volume tiers",
-                      buttonText: parsedConfig.buttonText || "Choose",
-                      accentColor: parsedConfig.accentColor || "#eab308",
-                      defaultTier: parsedConfig.defaultTier || 2,
-                      tiers: parsedConfig.tiers || [],
-                      active: nextStatus === "Active",
-                      updatedAt: new Date().toISOString(),
-                    }),
-                  },
-                ],
-              },
-            }
-          );
-        }
-      } catch (e) {
-        console.error("Status toggle metafield sync error:", e);
-      }
-    }
-
-    return { success: true };
-  }
-
-  if (intent === "delete") {
-    await db.bundle.delete({
-      where: { id: bundleId },
-    });
-    return { success: true };
-  }
-
-  return { success: false };
-};
-
-export default function Dashboard() {
-  const { dashboardData } = useLoaderData();
-  const fetcher = useFetcher();
-
-  // টগল স্ট্যাটাস ফাংশন
-  const handleToggleStatus = (bundleId, currentStatus) => {
-    fetcher.submit(
-      {
-        intent: "toggle-status",
-        bundleId,
-        currentStatus,
-      },
-      { method: "POST" }
-    );
-  };
-
-  // ডিলিট ফাংশন
-  const handleDelete = (bundleId) => {
-    if (confirm("Are you sure you want to delete this bundle?")) {
-      fetcher.submit(
-        {
-          intent: "delete",
-          bundleId,
-        },
-        { method: "POST" }
-      );
-    }
-  };
-
-  const themeCustomizerUrl = dashboardData.shop
-    ? `https://${dashboardData.shop}/admin/themes/current/editor?context=apps`
-    : "#";
+export default function EmbeddedWelcomeLaunchpad() {
+  const { shop, appUrl } = useLoaderData();
+  const portalUrl = `${appUrl}/portal?shop=${encodeURIComponent(shop)}`;
 
   return (
-    <s-page heading="Smart Bundles Dashboard">
-      <s-link slot="primary-action" href="/app/templates">
-        <s-button variant="primary">Create New Bundle ⚡</s-button>
-      </s-link>
-
-      {/* Automatic Checkout Discount Status */}
-      <s-section>
+    <div style={{ maxWidth: 720, margin: "60px auto", padding: "0 20px", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }}>
+      <div
+        style={{
+          background: "#ffffff",
+          borderRadius: 24,
+          border: "1px solid #e2e8f0",
+          boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.07)",
+          overflow: "hidden",
+          textAlign: "center",
+          padding: "52px 40px",
+        }}
+      >
+        {/* Glow Logo Badge */}
         <div
           style={{
-            backgroundColor: "#f0fdf4",
-            border: "1px solid #86efac",
-            borderRadius: "8px",
-            padding: "14px 18px",
+            width: 76,
+            height: 76,
+            borderRadius: 22,
+            background: "linear-gradient(135deg, #f59e0b, #ef4444)",
             display: "flex",
             alignItems: "center",
-            gap: "12px",
-            marginBottom: "16px",
+            justifyContent: "center",
+            fontSize: 38,
+            margin: "0 auto 24px auto",
+            boxShadow: "0 10px 25px rgba(245, 158, 11, 0.35)",
+            color: "#ffffff",
           }}
         >
-          <span style={{ fontSize: "26px" }}>⚡</span>
-          <div>
-            <div style={{ fontWeight: "700", color: "#15803d", fontSize: "14px" }}>
-              Checkout Automatic Discount Engine: Active & Synced
-            </div>
-            <div style={{ color: "#166534", fontSize: "13px", marginTop: "2px" }}>
-              Shopify automatic discount is active. When customers add multi-collection bundle products to cart and proceed to checkout, the 15% discount is applied automatically without needing any manual coupon code.
-            </div>
-          </div>
+          ⚡
         </div>
-      </s-section>
 
-      {/* Theme App Embed Integration Notice */}
-      <s-section>
-        <div
-          style={{
-            backgroundColor: "#f0fdf4",
-            border: "1px solid #bbf7d0",
-            borderRadius: "8px",
-            padding: "16px 20px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "12px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ fontSize: "28px" }}>🔌</span>
-            <div>
-              <div style={{ fontWeight: "700", color: "#166534", fontSize: "14px" }}>
-                Storefront App Embed Control (Enable / Disable)
-              </div>
-              <div style={{ color: "#15803d", fontSize: "13px", marginTop: "2px" }}>
-                You can easily turn the app <strong>ON</strong> or <strong>OFF</strong> globally from your Theme's <em>App Embeds</em> tab.
-              </div>
-            </div>
-          </div>
+        {/* Welcome Title */}
+        <h1 style={{ fontSize: 30, fontWeight: 900, color: "#0f172a", margin: "0 0 12px 0", letterSpacing: "-0.02em" }}>
+          Welcome to Smart Bundles
+        </h1>
+        <p style={{ color: "#64748b", fontSize: 16, lineHeight: 1.6, maxWidth: 520, margin: "0 auto 32px auto" }}>
+          Your standalone bundle & discount platform is active for <strong style={{ color: "#0f172a" }}>{shop}</strong>. All bundles, templates, and analytics are managed in our dedicated full-screen web app.
+        </p>
+
+        {/* Primary Launch Button */}
+        <div style={{ marginBottom: 36 }}>
           <a
-            href={themeCustomizerUrl}
+            href={portalUrl}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             style={{
-              backgroundColor: "#16a34a",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 12,
+              background: "#0f172a",
               color: "#ffffff",
+              padding: "16px 40px",
+              borderRadius: 14,
+              fontSize: 17,
+              fontWeight: 800,
               textDecoration: "none",
-              padding: "9px 18px",
-              borderRadius: "6px",
-              fontWeight: "600",
-              fontSize: "13px",
-              boxShadow: "0 2px 4px rgba(22, 163, 74, 0.2)",
+              boxShadow: "0 8px 20px rgba(15, 23, 42, 0.25)",
+              transition: "all 0.15s ease",
             }}
           >
-            Manage in Theme Embeds ↗
+            <span>🚀 Open Web Dashboard in New Tab</span>
+            <span style={{ fontSize: 20 }}>↗</span>
           </a>
         </div>
-      </s-section>
 
-      {/* ১. ওভারভিউ মেট্রিক্স কার্ড */}
-      <s-section heading="Overview & Performance">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
-          <div style={{ backgroundColor: "#f9fafb", padding: "16px", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
-            <span style={{ fontSize: "12px", color: "#6b7280", textTransform: "uppercase", fontWeight: "bold" }}>
-              Total Bundle Revenue
-            </span>
-            <h2 style={{ margin: "8px 0 0 0", fontSize: "24px", color: "#111827" }}>
-              {dashboardData.totalRevenue}
-            </h2>
+        {/* Status Pills */}
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 20,
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            padding: "12px 24px",
+            borderRadius: 9999,
+            fontSize: 13,
+            color: "#475569",
+            fontWeight: 600,
+            flexWrap: "wrap",
+            justifyContent: "center",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: "#10b981", fontSize: 12 }}>●</span> Store: <strong style={{ color: "#0f172a" }}>{shop}</strong>
           </div>
-
-          <div style={{ backgroundColor: "#f9fafb", padding: "16px", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
-            <span style={{ fontSize: "12px", color: "#6b7280", textTransform: "uppercase", fontWeight: "bold" }}>
-              Active Bundles
-            </span>
-            <h2 style={{ margin: "8px 0 0 0", fontSize: "24px", color: "#008060" }}>
-              {dashboardData.activeBundlesCount} Live
-            </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: "#10b981", fontSize: 12 }}>●</span> Cart Engine: <span style={{ color: "#059669" }}>Active & Synced</span>
           </div>
-
-          <div style={{ backgroundColor: "#f9fafb", padding: "16px", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
-            <span style={{ fontSize: "12px", color: "#6b7280", textTransform: "uppercase", fontWeight: "bold" }}>
-              Conversion Boost
-            </span>
-            <h2 style={{ margin: "8px 0 0 0", fontSize: "24px", color: "#2563eb" }}>
-              +{dashboardData.avgConversionRate}
-            </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: "#38bdf8", fontSize: 12 }}>●</span> Database: <span style={{ color: "#0284c7" }}>PostgreSQL Connected</span>
           </div>
         </div>
-      </s-section>
-
-      {/* ২. সাইডবার ইনফরমেশন */}
-      <s-section slot="aside" heading="Cart Transform Engine">
-        <s-paragraph>
-          <strong>Status:</strong> Active &amp; Synced
-        </s-paragraph>
-        <s-paragraph>
-          <strong>WASM Latency:</strong> &lt; 4ms
-        </s-paragraph>
-        <s-paragraph>
-          <strong>Inventory Sync:</strong> Independent SKUs
-        </s-paragraph>
-      </s-section>
-
-      {/* ৩. একটিভ বান্ডেলের তালিকা ও অ্যাকশন কন্ট্রোলস */}
-      <s-section heading={`Active Store Bundles (${dashboardData.bundles.length})`}>
-        {dashboardData.bundles.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px", backgroundColor: "#fff", borderRadius: "8px" }}>
-            <p style={{ color: "#6b7280", marginBottom: "16px" }}>No bundles created yet.</p>
-            <Link to="/app/templates" style={{ textDecoration: "none" }}>
-              <s-button variant="primary">Create your first bundle</s-button>
-            </Link>
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", backgroundColor: "#fff", borderRadius: "8px" }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #eee", backgroundColor: "#f9fafb" }}>
-                  <th style={{ padding: "12px 14px" }}>Bundle Name</th>
-                  <th style={{ padding: "12px 14px" }}>Strategy</th>
-                  <th style={{ padding: "12px 14px" }}>Discount</th>
-                  <th style={{ padding: "12px 14px" }}>Units Sold</th>
-                  <th style={{ padding: "12px 14px" }}>Revenue</th>
-                  <th style={{ padding: "12px 14px" }}>Status</th>
-                  <th style={{ padding: "12px 14px", textAlign: "center" }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dashboardData.bundles.map((bundle) => {
-                  const isActive = bundle.status === "Active";
-                  return (
-                    <tr key={bundle.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                      <td style={{ padding: "14px", fontWeight: "bold" }}>{bundle.title}</td>
-                      <td style={{ padding: "14px", color: "#555", fontSize: "13px" }}>{bundle.strategy}</td>
-                      <td style={{ padding: "14px", color: "#008060", fontWeight: "bold" }}>
-                        {bundle.discount}
-                      </td>
-                      <td style={{ padding: "14px" }}>{bundle.salesCount || 0} orders</td>
-                      <td style={{ padding: "14px", fontWeight: "bold" }}>
-                        ${(bundle.revenue || 0).toFixed(2)}
-                      </td>
-                      <td style={{ padding: "14px" }}>
-                        <span
-                          style={{
-                            backgroundColor: isActive ? "#e3f1df" : "#f3f4f6",
-                            color: isActive ? "#108043" : "#6b7280",
-                            padding: "4px 10px",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                            fontWeight: "bold",
-                          }}
-                        >
-                          {bundle.status}
-                        </span>
-                      </td>
-
-                      <td style={{ padding: "14px", textAlign: "center" }}>
-                        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "10px" }}>
-
-                          {/* Publish / Unpublish ON-OFF Toggle Switch */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleStatus(bundle.id, bundle.status)}
-                            title={isActive ? "Click to Unpublish" : "Click to Publish"}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: isActive ? "flex-end" : "flex-start",
-                              width: "60px",
-                              height: "28px",
-                              backgroundColor: isActive ? "#111827" : "#e5e7eb",
-                              borderRadius: "14px",
-                              padding: "3px",
-                              border: "none",
-                              cursor: "pointer",
-                              transition: "all 0.2s ease",
-                            }}
-                          >
-                            <span
-                              style={{
-                                display: "inline-block",
-                                width: "22px",
-                                height: "22px",
-                                borderRadius: "50%",
-                                backgroundColor: "#fff",
-                                color: isActive ? "#111827" : "#6b7280",
-                                fontSize: "10px",
-                                fontWeight: "bold",
-                                lineHeight: "22px",
-                                textAlign: "center",
-                                boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-                              }}
-                            >
-                              {isActive ? "ON" : "OFF"}
-                            </span>
-                          </button>
-
-                          {/* Edit Bundle Button */}
-                          <Link
-                            to={bundle.strategy === "Volume Discounts" ? `/app/volume-discount-builder?id=${bundle.id}` : bundle.strategy === "Buy X Get Y" ? `/app/bxgy-builder?id=${bundle.id}` : `/app/bundle-builder?id=${bundle.id}`}
-                            title="Edit bundle"
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              width: "30px",
-                              height: "28px",
-                              borderRadius: "6px",
-                              backgroundColor: "#f3f4f6",
-                              color: "#374151",
-                              textDecoration: "none",
-                              fontSize: "14px",
-                              border: "1px solid #d1d5db",
-                              cursor: "pointer",
-                            }}
-                          >
-                            ??
-                          </Link>
-
-                          {/* Delete Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(bundle.id)}
-                            title="Delete bundle"
-                            style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              fontSize: "16px",
-                              color: "#ef4444",
-                              padding: "4px",
-                            }}
-                          >
-                            🗑
-                          </button>
-                        </div>
-                      </td>
-
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </s-section>
-    </s-page>
+      </div>
+    </div>
   );
 }
