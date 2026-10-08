@@ -114,7 +114,7 @@
                 <!-- Floating Corner Badge -->
                 {% if tier.popularBadge != blank %}
                   <div class="vd-popular-badge">
-                    <span>ÃƒÂ¢Ã…â€œÃ‚Â¨</span>
+                    <span>✨</span>
                     <span>{{ tier.popularBadge }}</span>
                   </div>
                 {% endif %}
@@ -236,7 +236,7 @@
               aria-checked="true"
             >
               <div class="vd-popular-badge">
-                <span>ÃƒÂ¢Ã…â€œÃ‚Â¨</span>
+                <span>✨</span>
                 <span>Most Popular</span>
               </div>
 
@@ -308,35 +308,35 @@
   </div>
 
   <style>
-    #vd-widget-{{ widget_id }} {
+    .vd-widget-container {
       margin: 20px 0;
       width: 100%;
       box-sizing: border-box;
       font-family: inherit;
     }
 
-    #vd-widget-{{ block.id }} * {
+    .vd-widget-container * {
       box-sizing: border-box;
     }
 
-    #vd-widget-{{ block.id }} .vd-card-wrap {
+    .vd-widget-container .vd-card-wrap {
       width: 100%;
     }
 
-    #vd-widget-{{ block.id }} .vd-main-title {
+    .vd-widget-container .vd-main-title {
       font-size: 17px;
       font-weight: 700;
       margin: 0 0 14px 0;
       color: #111827;
     }
 
-    #vd-widget-{{ block.id }} .vd-tiers-list {
+    .vd-widget-container .vd-tiers-list {
       display: flex;
       flex-direction: column;
       gap: 14px;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-row {
+    .vd-widget-container .vd-tier-row {
       position: relative;
       display: flex;
       align-items: center;
@@ -351,30 +351,30 @@
       outline: none;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-card {
+    .vd-widget-container .vd-tier-card {
       position: relative;
       display: flex;
       flex-direction: column;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-row:hover {
+    .vd-widget-container .vd-tier-row:hover {
       border-color: var(--vd-accent, #f59e0b);
       transform: translateY(-1px);
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-row.is-selected {
+    .vd-widget-container .vd-tier-row.is-selected {
       background: #fffdf5;
       border: 2px solid var(--vd-accent, #f59e0b);
       box-shadow: 0 0 0 1px var(--vd-accent, #f59e0b);
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-card.is-selected .vd-tier-row {
+    .vd-widget-container .vd-tier-card.is-selected .vd-tier-row {
       border-bottom-left-radius: 0;
       border-bottom-right-radius: 0;
       border-bottom: none;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-gift-bar {
+    .vd-widget-container .vd-tier-gift-bar {
       background: var(--vd-accent, #f59e0b);
       color: #ffffff;
       padding: 7px 16px;
@@ -390,16 +390,16 @@
       box-shadow: 0 4px 10px -2px rgba(245, 158, 11, 0.25);
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-gift-bar.vd-gift-hidden {
+    .vd-widget-container .vd-tier-gift-bar.vd-gift-hidden {
       display: none !important;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-thumb {
+    .vd-widget-container .vd-tier-thumb {
       border: 1px solid #e5e7eb;
     }
 
     /* Floating Most Popular Corner Badge */
-    #vd-widget-{{ block.id }} .vd-popular-badge {
+    .vd-widget-container .vd-popular-badge {
       position: absolute;
       top: -13px;
       right: 14px;
@@ -418,13 +418,13 @@
     }
 
     /* Left Side: Radio & Info */
-    #vd-widget-{{ block.id }} .vd-tier-left {
+    .vd-widget-container .vd-tier-left {
       display: flex;
       align-items: center;
       gap: 14px;
     }
 
-    #vd-widget-{{ block.id }} .vd-radio-dot {
+    .vd-widget-container .vd-radio-dot {
       width: 22px;
       height: 22px;
       border-radius: 50%;
@@ -437,11 +437,11 @@
       transition: all 0.2s ease;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-row.is-selected .vd-radio-dot {
+    .vd-widget-container .vd-tier-row.is-selected .vd-radio-dot {
       border: 2.5px solid var(--vd-accent, #f59e0b);
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-row.is-selected .vd-radio-dot::after {
+    .vd-widget-container .vd-tier-row.is-selected .vd-radio-dot::after {
       content: "";
       width: 10px;
       height: 10px;
@@ -449,20 +449,20 @@
       background: var(--vd-accent, #f59e0b);
     }
 
-    #vd-widget-{{ block.id }} .vd-title-row {
+    .vd-widget-container .vd-title-row {
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-title {
+    .vd-widget-container .vd-tier-title {
       font-size: 18px;
       font-weight: 700;
       color: #111827;
       line-height: 1.2;
     }
 
-    #vd-widget-{{ block.id }} .vd-save-pill {
+    .vd-widget-container .vd-save-pill {
       background-color: #fef3c7;
       color: #92400e;
       font-size: 11.5px;
@@ -473,27 +473,27 @@
       letter-spacing: 0.3px;
     }
 
-    #vd-widget-{{ block.id }} .vd-tier-subtitle {
+    .vd-widget-container .vd-tier-subtitle {
       font-size: 13.5px;
       color: #6b7280;
       margin-top: 3px;
     }
 
     /* Right Side: Price */
-    #vd-widget-{{ block.id }} .vd-tier-right {
+    .vd-widget-container .vd-tier-right {
       display: flex;
       flex-direction: column;
       align-items: flex-end;
       gap: 2px;
     }
 
-    #vd-widget-{{ block.id }} .vd-final-price {
+    .vd-widget-container .vd-final-price {
       font-size: 19px;
       font-weight: 800;
       color: #111827;
     }
 
-    #vd-widget-{{ block.id }} .vd-strikethrough-price {
+    .vd-widget-container .vd-strikethrough-price {
       font-size: 13px;
       color: #9ca3af;
       text-decoration: line-through;
@@ -710,7 +710,7 @@
           if (tier.popularBadge) {
             popBadgeHtml = `
               <div class="vd-popular-badge">
-                <span>ÃƒÂ¢Ã…â€œÃ‚Â¨</span>
+                <span>✨</span>
                 <span>${tier.popularBadge}</span>
               </div>
             `;
