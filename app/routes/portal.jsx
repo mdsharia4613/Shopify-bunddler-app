@@ -1,9 +1,10 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useLoaderData, useFetcher } from "react-router";
 import prisma from "../db.server";
 
 // Modular Portal Components
 import ProductSelectorModal from "../components/portal/ProductSelectorModal";
+import CollectionSelectorModal from "../components/portal/CollectionSelectorModal";
 import VolumeDiscountBuilder from "../components/portal/VolumeDiscountBuilder";
 import BxgyBuilder from "../components/portal/BxgyBuilder";
 import StepBundleBuilder from "../components/portal/StepBundleBuilder";
@@ -23,6 +24,7 @@ export const loader = async ({ request }) => {
   let bundles = [];
   let allStores = [];
   let products = [];
+  let collections = [];
 
   try {
     store = await prisma.shopifyStore.findUnique({
@@ -38,7 +40,6 @@ export const loader = async ({ request }) => {
       orderBy: { createdAt: "desc" },
     });
 
-    // Option 1: Fetch store products from Shopify Admin GraphQL API
     const session = await prisma.session.findFirst({
       where: { shop },
       orderBy: { expires: "desc" },
@@ -53,16 +54,24 @@ export const loader = async ({ request }) => {
         },
         body: JSON.stringify({
           query: `
-            query getProducts {
-              products(first: 25) {
+            query getStoreCatalog {
+              products(first: 30) {
                 nodes {
                   id
                   title
                   handle
-                  featuredImage { url altText }
+                  featuredImage { url }
                   variants(first: 5) {
                     nodes { id title price }
                   }
+                }
+              }
+              collections(first: 30) {
+                nodes {
+                  id
+                  title
+                  handle
+                  productsCount { count }
                 }
               }
             }
@@ -80,12 +89,19 @@ export const loader = async ({ request }) => {
           variants: p.variants?.nodes || [],
         }));
       }
+      if (json?.data?.collections?.nodes) {
+        collections = json.data.collections.nodes.map((c) => ({
+          id: c.id,
+          title: c.title,
+          handle: c.handle,
+          count: c.productsCount?.count || 0,
+        }));
+      }
     }
   } catch (err) {
     console.error("Portal loader error:", err);
   }
 
-  // Default fallback products
   if (!products || products.length === 0) {
     products = [
       {
@@ -112,14 +128,14 @@ export const loader = async ({ request }) => {
         image: "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png",
         variants: [{ id: "gid://shopify/ProductVariant/1003", title: "Default", price: "20.00" }],
       },
-      {
-        id: "gid://shopify/Product/904",
-        title: "Polarized Anti-Fog Ski Goggles",
-        handle: "polarized-ski-goggles",
-        price: "28.00",
-        image: "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png",
-        variants: [{ id: "gid://shopify/ProductVariant/1004", title: "Default", price: "28.00" }],
-      },
+    ];
+  }
+
+  if (!collections || collections.length === 0) {
+    collections = [
+      { id: "gid://shopify/Collection/101", title: "Collection 1 - Snowboards", handle: "snowboards", count: 8 },
+      { id: "gid://shopify/Collection/102", title: "Collection 2 - Protective Helmets", handle: "helmets", count: 12 },
+      { id: "gid://shopify/Collection/103", title: "Collection 3 - Winter Accessories", handle: "winter-accessories", count: 15 },
     ];
   }
 
@@ -129,6 +145,7 @@ export const loader = async ({ request }) => {
     allStores: allStores.length > 0 ? allStores : [{ id: "1", shop, storeName: shop.replace(".myshopify.com", "") }],
     bundles,
     products,
+    collections,
     appUrl: process.env.SHOPIFY_APP_URL || "https://shopify-bunddler-app.onrender.com",
   };
 };
@@ -136,6 +153,7 @@ export const loader = async ({ request }) => {
 export const action = async ({ request }) => {
   const formData = await request.formData();
   const intent = formData.get("intent");
+  const shop = formData.get("shop") || "demo-app-uvjpaks1.myshopify.com";
 
   try {
     if (intent === "toggle_status") {
@@ -160,26 +178,159 @@ export const action = async ({ request }) => {
       const title = formData.get("title");
       const strategy = formData.get("strategy");
       const discount = formData.get("discount");
-      const config = formData.get("config");
+      const configRaw = formData.get("config");
 
+      let parsedConfig = {};
+      try {
+        parsedConfig = JSON.parse(configRaw);
+      } catch (e) {
+        parsedConfig = {};
+      }
+
+      let savedBundle = null;
       if (bundleId) {
-        await prisma.bundle.update({
+        savedBundle = await prisma.bundle.update({
           where: { id: bundleId },
-          data: { title, strategy, discount, products: config },
+          data: { title, strategy, discount, products: configRaw },
         });
-        return { success: true, message: "Campaign updated successfully!" };
       } else {
-        await prisma.bundle.create({
+        savedBundle = await prisma.bundle.create({
           data: {
             title,
             strategy,
             discount,
-            products: config,
+            products: configRaw,
             status: "Active",
           },
         });
-        return { success: true, message: "New campaign created & published!" };
       }
+
+      // Sync Storefront Metafields for instant live widget updates
+      try {
+        const session = await prisma.session.findFirst({
+          where: { shop },
+          orderBy: { expires: "desc" },
+        });
+
+        if (session?.accessToken) {
+          const infoRes = await fetch(`https://${shop}/admin/api/2026-10/graphql.json`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Shopify-Access-Token": session.accessToken,
+            },
+            body: JSON.stringify({
+              query: `query { currentAppInstallation { id } shop { id } }`,
+            }),
+          });
+          const infoJson = await infoRes.json();
+          const appInstallId = infoJson.data?.currentAppInstallation?.id;
+          const shopId = infoJson.data?.shop?.id;
+
+          let metafieldKey = "active_bundle";
+          let metafieldVal = "";
+
+          if (strategy === "Multi-Collection Complete Bundle") {
+            metafieldKey = "active_bundle";
+            const discountMatch = discount?.match(/(\d+)%/);
+            const discountNum = parsedConfig?.discountPercent || (discountMatch ? parseInt(discountMatch[1], 10) : 15);
+
+            metafieldVal = JSON.stringify({
+              id: savedBundle.id,
+              title: savedBundle.title,
+              discountPercent: discountNum,
+              discountSummary: savedBundle.discount,
+              discountCode: `BUNDLE${discountNum}`,
+              collectionRows: parsedConfig.collectionRows || [],
+              brandColor: parsedConfig.brandColor || parsedConfig.accentColor || "#3b82f6",
+              accentColor: parsedConfig.accentColor || "#3b82f6",
+              active: true,
+              updatedAt: new Date().toISOString(),
+            });
+          } else if (strategy === "Volume Discounts") {
+            metafieldKey = "active_volume";
+            metafieldVal = JSON.stringify({
+              id: savedBundle.id,
+              title: savedBundle.title,
+              appliesTo: parsedConfig.appliesTo || "all",
+              selectedProducts: parsedConfig.selectedProducts || [],
+              selectedCollections: parsedConfig.selectedCollections || [],
+              tiers: parsedConfig.tiers || [],
+              accentColor: parsedConfig.accentColor || "#f59e0b",
+              active: true,
+              updatedAt: new Date().toISOString(),
+            });
+          } else if (strategy === "Buy X Get Y") {
+            metafieldKey = "active_bxgy";
+            metafieldVal = JSON.stringify({
+              id: savedBundle.id,
+              title: savedBundle.title,
+              headerTitle: parsedConfig.headerTitle || "Buy X, Get Y Special",
+              appliesTo: parsedConfig.appliesTo || "all",
+              selectedProducts: parsedConfig.selectedProducts || [],
+              selectedCollections: parsedConfig.selectedCollections || [],
+              tiers: parsedConfig.tiers || [],
+              defaultTier: parsedConfig.defaultTier || 1,
+              accentColor: parsedConfig.accentColor || "#10b981",
+              active: true,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+
+          if (metafieldVal) {
+            const metafields = [];
+            if (appInstallId) {
+              metafields.push({
+                ownerId: appInstallId,
+                namespace: "$app:smart_bundles",
+                key: metafieldKey,
+                type: "json",
+                value: metafieldVal,
+              });
+            }
+            if (shopId) {
+              metafields.push({
+                ownerId: shopId,
+                namespace: "$app:smart_bundles",
+                key: metafieldKey,
+                type: "json",
+                value: metafieldVal,
+              });
+              metafields.push({
+                ownerId: shopId,
+                namespace: "smart_bundles",
+                key: metafieldKey,
+                type: "json",
+                value: metafieldVal,
+              });
+            }
+
+            if (metafields.length > 0) {
+              await fetch(`https://${shop}/admin/api/2026-10/graphql.json`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Shopify-Access-Token": session.accessToken,
+                },
+                body: JSON.stringify({
+                  query: `
+                    mutation setMetafields($metafields: [MetafieldsSetInput!]!) {
+                      metafieldsSet(metafields: $metafields) {
+                        userErrors { field message }
+                      }
+                    }
+                  `,
+                  variables: { metafields },
+                }),
+              });
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.warn("Storefront metafield sync note:", syncErr?.message);
+      }
+
+      return { success: true, message: "Campaign saved & published to storefront!" };
     }
   } catch (err) {
     console.error("Portal action error:", err);
@@ -188,25 +339,60 @@ export const action = async ({ request }) => {
 
   return { success: true };
 };
+
 export default function StandalonePortal() {
-  const { shop, allStores, bundles, products } = useLoaderData();
+  const { shop, allStores, bundles, products, collections } = useLoaderData();
   const fetcher = useFetcher();
 
   // Navigation states: "dashboard", "templates", "settings"
   const [activeTab, setActiveTab] = useState("dashboard");
   const [storeDropdown, setStoreDropdown] = useState(false);
 
-  // Next Slide: Active Builder State
+  // Active Builder State ("volume", "bxgy", "step")
   const [activeBuilder, setActiveBuilder] = useState(null);
   const [editingBundleId, setEditingBundleId] = useState(null);
 
-  // Option 1: Product Selector Modal State
+  // In-App Product Selector Modal
   const [showProductModal, setShowProductModal] = useState(false);
-  const [modalTargetField, setModalTargetField] = useState("vol");
+  const [modalProductTarget, setModalProductTarget] = useState("vol");
 
-  // Volume Discounts Form State
+  // In-App Collection Selector Modal
+  const [showCollectionModal, setShowCollectionModal] = useState(false);
+  const [collectionModalTarget, setCollectionModalTarget] = useState({ type: "step", stepId: 1 });
+
+  // 1. STEP BUNDLE (MULTI-COLLECTION) STATE
+  const [stepTitle, setStepTitle] = useState("Multi-Collection Step Bundle");
+  const [stepCollectionRows, setStepCollectionRows] = useState([
+    {
+      id: 1,
+      stepTitle: "Step 1",
+      collectionId: collections[0]?.id || "",
+      collectionTitle: collections[0]?.title || "Collection 1",
+      collectionHandle: collections[0]?.handle || "",
+    },
+    {
+      id: 2,
+      stepTitle: "Step 2",
+      collectionId: collections[1]?.id || "",
+      collectionTitle: collections[1]?.title || "Collection 2",
+      collectionHandle: collections[1]?.handle || "",
+    },
+    {
+      id: 3,
+      stepTitle: "Step 3",
+      collectionId: collections[2]?.id || "",
+      collectionTitle: collections[2]?.title || "Collection 3",
+      collectionHandle: collections[2]?.handle || "",
+    },
+  ]);
+  const [stepDiscountPercent, setStepDiscountPercent] = useState(15);
+  const [stepColor, setStepColor] = useState("#3b82f6");
+
+  // 2. VOLUME DISCOUNTS STATE
   const [volTitle, setVolTitle] = useState("Volume Discounts Campaign");
+  const [volAppliesTo, setVolAppliesTo] = useState("all");
   const [volSelectedProducts, setVolSelectedProducts] = useState(products.slice(0, 1));
+  const [volSelectedCollections, setVolSelectedCollections] = useState([]);
   const [volTiers, setVolTiers] = useState([
     { quantity: 1, discountPercent: 0, label: "Single Unit", badge: "STANDARD" },
     { quantity: 2, discountPercent: 15, label: "Duo Pack", badge: "MOST POPULAR" },
@@ -214,21 +400,36 @@ export default function StandalonePortal() {
   ]);
   const [volColor, setVolColor] = useState("#f59e0b");
 
-  // BXGY Form State
-  const [bxgyTitle, setBxgyTitle] = useState("Buy 2 Get 1 Free Deal");
+  // 3. BXGY DEALS STATE
+  const [bxgyTitle, setBxgyTitle] = useState("Buy X Get Y Special Deal");
+  const [bxgyHeaderTitle, setBxgyHeaderTitle] = useState("Buy X, Get Y (BXGY) Special");
+  const [bxgyAppliesTo, setBxgyAppliesTo] = useState("all");
   const [bxgySelectedProducts, setBxgySelectedProducts] = useState(products.slice(0, 1));
-  const [bxgyBuyQty, setBxgyBuyQty] = useState(2);
-  const [bxgyGetQty, setBxgyGetQty] = useState(1);
-  const [bxgyBadge, setBxgyBadge] = useState("BUY 2 GET 1 FREE");
+  const [bxgySelectedCollections, setBxgySelectedCollections] = useState([]);
+  const [bxgyTiers, setBxgyTiers] = useState([
+    {
+      id: 1,
+      title: "Buy 1 Get 1 Free",
+      buyQty: 1,
+      getQty: 1,
+      totalQty: 2,
+      discount: 50,
+      saveTag: "SAVE 50%",
+      popularBadge: "Best Value",
+    },
+    {
+      id: 2,
+      title: "Buy 2 Get 3 Free",
+      buyQty: 2,
+      getQty: 3,
+      totalQty: 5,
+      discount: 60,
+      saveTag: "SAVE 60%",
+      popularBadge: "",
+    },
+  ]);
   const [bxgyColor, setBxgyColor] = useState("#10b981");
-
-  // Step Bundle Form State
-  const [stepTitle, setStepTitle] = useState("Multi-Collection Step Bundle");
-  const [step1Products, setStep1Products] = useState(products.slice(0, 1));
-  const [step2Products, setStep2Products] = useState(products.slice(1, 2));
-  const [step3Products, setStep3Products] = useState(products.slice(2, 3));
-  const [stepDiscountPercent, setStepDiscountPercent] = useState(15);
-  const [stepColor, setStepColor] = useState("#3b82f6");
+  const [bxgyDefaultTier, setBxgyDefaultTier] = useState(1);
 
   // EXACTLY 3 Main Navigation Links
   const navItems = [
@@ -248,32 +449,61 @@ export default function StandalonePortal() {
 
       if (type === "volume") {
         setVolTitle(existingBundle.title || "Volume Discounts Campaign");
+        if (parsed.appliesTo) setVolAppliesTo(parsed.appliesTo);
         if (parsed.selectedProducts) setVolSelectedProducts(parsed.selectedProducts);
+        if (parsed.selectedCollections) setVolSelectedCollections(parsed.selectedCollections);
         if (parsed.tiers) setVolTiers(parsed.tiers);
         if (parsed.accentColor) setVolColor(parsed.accentColor);
       } else if (type === "bxgy") {
-        setBxgyTitle(existingBundle.title || "Buy 2 Get 1 Free Deal");
+        setBxgyTitle(existingBundle.title || "Buy X Get Y Special Deal");
+        if (parsed.headerTitle) setBxgyHeaderTitle(parsed.headerTitle);
+        if (parsed.appliesTo) setBxgyAppliesTo(parsed.appliesTo);
         if (parsed.selectedProducts) setBxgySelectedProducts(parsed.selectedProducts);
-        if (parsed.buyQty) setBxgyBuyQty(parsed.buyQty);
-        if (parsed.getQty) setBxgyGetQty(parsed.getQty);
-        if (parsed.badge) setBxgyBadge(parsed.badge);
+        if (parsed.selectedCollections) setBxgySelectedCollections(parsed.selectedCollections);
+        if (parsed.tiers) setBxgyTiers(parsed.tiers);
         if (parsed.accentColor) setBxgyColor(parsed.accentColor);
+        if (parsed.defaultTier) setBxgyDefaultTier(parsed.defaultTier);
       } else if (type === "step") {
         setStepTitle(existingBundle.title || "Multi-Collection Step Bundle");
-        if (parsed.step1Products) setStep1Products(parsed.step1Products);
-        if (parsed.step2Products) setStep2Products(parsed.step2Products);
-        if (parsed.step3Products) setStep3Products(parsed.step3Products);
+        if (parsed.collectionRows && Array.isArray(parsed.collectionRows)) {
+          setStepCollectionRows(parsed.collectionRows);
+        }
         if (parsed.discountPercent) setStepDiscountPercent(parsed.discountPercent);
-        if (parsed.accentColor) setStepColor(parsed.accentColor);
+        if (parsed.accentColor || parsed.brandColor) setStepColor(parsed.accentColor || parsed.brandColor);
       }
     } else {
       setEditingBundleId(null);
     }
   };
 
+  const handleSaveStep = () => {
+    const config = JSON.stringify({
+      collectionRows: stepCollectionRows,
+      discountPercent: stepDiscountPercent,
+      accentColor: stepColor,
+      brandColor: stepColor,
+    });
+    fetcher.submit(
+      {
+        intent: "save_bundle",
+        shop,
+        bundleId: editingBundleId || "",
+        title: stepTitle,
+        strategy: "Multi-Collection Complete Bundle",
+        discount: `${stepDiscountPercent}% OFF (${stepCollectionRows.length} Collections)`,
+        config,
+      },
+      { method: "POST" }
+    );
+    setActiveBuilder(null);
+    setActiveTab("dashboard");
+  };
+
   const handleSaveVolume = () => {
     const config = JSON.stringify({
+      appliesTo: volAppliesTo,
       selectedProducts: volSelectedProducts,
+      selectedCollections: volSelectedCollections,
       tiers: volTiers,
       accentColor: volColor,
     });
@@ -281,6 +511,7 @@ export default function StandalonePortal() {
     fetcher.submit(
       {
         intent: "save_bundle",
+        shop,
         bundleId: editingBundleId || "",
         title: volTitle,
         strategy: "Volume Discounts",
@@ -295,19 +526,23 @@ export default function StandalonePortal() {
 
   const handleSaveBXGY = () => {
     const config = JSON.stringify({
+      headerTitle: bxgyHeaderTitle,
+      appliesTo: bxgyAppliesTo,
       selectedProducts: bxgySelectedProducts,
-      buyQty: bxgyBuyQty,
-      getQty: bxgyGetQty,
-      badge: bxgyBadge,
+      selectedCollections: bxgySelectedCollections,
+      tiers: bxgyTiers,
+      defaultTier: bxgyDefaultTier,
       accentColor: bxgyColor,
     });
+    const maxDiscount = Math.max(...bxgyTiers.map(t => t.discount || 0));
     fetcher.submit(
       {
         intent: "save_bundle",
+        shop,
         bundleId: editingBundleId || "",
         title: bxgyTitle,
         strategy: "Buy X Get Y",
-        discount: `Save up to 33% (BXGY)`,
+        discount: `Save up to ${maxDiscount}% (BXGY)`,
         config,
       },
       { method: "POST" }
@@ -316,66 +551,86 @@ export default function StandalonePortal() {
     setActiveTab("dashboard");
   };
 
-  const handleSaveStep = () => {
-    const config = JSON.stringify({
-      step1Products,
-      step2Products,
-      step3Products,
-      discountPercent: stepDiscountPercent,
-      accentColor: stepColor,
-    });
-    fetcher.submit(
-      {
-        intent: "save_bundle",
-        bundleId: editingBundleId || "",
-        title: stepTitle,
-        strategy: "Multi-Collection Complete Bundle",
-        discount: `${stepDiscountPercent}% OFF (All Steps)`,
-        config,
-      },
-      { method: "POST" }
-    );
-    setActiveBuilder(null);
-    setActiveTab("dashboard");
-  };
-
-  const openProductPicker = (targetField) => {
-    setModalTargetField(targetField);
+  const openProductPicker = (target) => {
+    setModalProductTarget(target);
     setShowProductModal(true);
   };
 
   const handleToggleProductInModal = (product) => {
-    if (modalTargetField === "vol") {
+    if (modalProductTarget === "vol") {
       const exists = volSelectedProducts.some(p => p.id === product.id);
       if (exists) {
         setVolSelectedProducts(volSelectedProducts.filter(p => p.id !== product.id));
       } else {
         setVolSelectedProducts([...volSelectedProducts, product]);
       }
-    } else if (modalTargetField === "bxgy") {
+    } else if (modalProductTarget === "bxgy") {
       const exists = bxgySelectedProducts.some(p => p.id === product.id);
       if (exists) {
         setBxgySelectedProducts(bxgySelectedProducts.filter(p => p.id !== product.id));
       } else {
         setBxgySelectedProducts([...bxgySelectedProducts, product]);
       }
-    } else if (modalTargetField === "step1") {
-      setStep1Products([product]);
-    } else if (modalTargetField === "step2") {
-      setStep2Products([product]);
-    } else if (modalTargetField === "step3") {
-      setStep3Products([product]);
     }
   };
 
   const getSelectedModalProducts = () => {
-    if (modalTargetField === "vol") return volSelectedProducts;
-    if (modalTargetField === "bxgy") return bxgySelectedProducts;
-    if (modalTargetField === "step1") return step1Products;
-    if (modalTargetField === "step2") return step2Products;
-    if (modalTargetField === "step3") return step3Products;
+    if (modalProductTarget === "vol") return volSelectedProducts;
+    if (modalProductTarget === "bxgy") return bxgySelectedProducts;
     return [];
   };
+
+  const openStepCollectionPicker = (stepId) => {
+    setCollectionModalTarget({ type: "step", stepId });
+    setShowCollectionModal(true);
+  };
+
+  const openVolCollectionPicker = () => {
+    setCollectionModalTarget({ type: "vol" });
+    setShowCollectionModal(true);
+  };
+
+  const openBxgyCollectionPicker = () => {
+    setCollectionModalTarget({ type: "bxgy" });
+    setShowCollectionModal(true);
+  };
+
+  const handleSelectCollectionForStep = (col) => {
+    if (collectionModalTarget.type === "step") {
+      const targetId = collectionModalTarget.stepId;
+      setStepCollectionRows(
+        stepCollectionRows.map((r) =>
+          r.id === targetId
+            ? {
+                ...r,
+                collectionId: col.id,
+                collectionTitle: col.title,
+                collectionHandle: col.handle,
+              }
+            : r
+        )
+      );
+    }
+  };
+
+  const handleToggleCollectionInModal = (col) => {
+    if (collectionModalTarget.type === "vol") {
+      const exists = volSelectedCollections.some(c => c.id === col.id);
+      if (exists) {
+        setVolSelectedCollections(volSelectedCollections.filter(c => c.id !== col.id));
+      } else {
+        setVolSelectedCollections([...volSelectedCollections, col]);
+      }
+    } else if (collectionModalTarget.type === "bxgy") {
+      const exists = bxgySelectedCollections.some(c => c.id === col.id);
+      if (exists) {
+        setBxgySelectedCollections(bxgySelectedCollections.filter(c => c.id !== col.id));
+      } else {
+        setBxgySelectedCollections([...bxgySelectedCollections, col]);
+      }
+    }
+  };
+
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif", color: "#0f172a" }}>
       {/* 1. Left SaaS Sidebar (3 Menus Only) */}
@@ -479,30 +734,25 @@ export default function StandalonePortal() {
             <a
               href={`https://${shop}`}
               target="_blank"
-              rel="noopener noreferrer"
-              style={{ background: "#0f172a", color: "#ffffff", padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
+              rel="noreferrer"
+              style={{ background: "#0f172a", color: "#ffffff", textDecoration: "none", padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}
             >
-              View Storefront ↗
+              <span>View Storefront</span>
+              <span style={{ fontSize: 11 }}>↗</span>
             </a>
           </div>
         </header>
 
-        {/* View Content */}
-        <div style={{ padding: "28px", flex: 1 }}>
+        {/* Content Body */}
+        <div style={{ padding: 28, flex: 1 }}>
           {/* TAB 1: DASHBOARD */}
           {activeTab === "dashboard" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
-                <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>TOTAL BUNDLE REVENUE</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: "#0f172a", marginTop: 8 }}>$0.00</div>
-                  <div style={{ fontSize: 12, color: "#10b981", fontWeight: 600, marginTop: 4 }}>+0.0% this week</div>
-                </div>
-
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginBottom: 28 }}>
                 <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>ACTIVE CAMPAIGNS</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: "#0f172a", marginTop: 8 }}>{bundles.length} Live</div>
-                  <div style={{ fontSize: 12, color: "#3b82f6", fontWeight: 600, marginTop: 4 }}>WASM cart engine connected</div>
+                  <div style={{ fontSize: 12, color: "#3b82f6", fontWeight: 600, marginTop: 4 }}>Storefront widgets active</div>
                 </div>
 
                 <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
@@ -548,7 +798,7 @@ export default function StandalonePortal() {
                             <td style={{ padding: "16px 24px", fontWeight: 700 }}>{b.title}</td>
                             <td style={{ padding: "16px 20px", color: "#64748b" }}>{b.strategy}</td>
                             <td style={{ padding: "16px 20px", color: "#10b981", fontWeight: 700 }}>{b.discount}</td>
-                            <td style={{ padding: "16px 20px" }}>{b.salesCount} orders</td>
+                            <td style={{ padding: "16px 20px" }}>{b.salesCount || 0} orders</td>
                             <td style={{ padding: "16px 20px" }}>
                               <span style={{ background: isActive ? "#ecfdf5" : "#f1f5f9", color: isActive ? "#065f46" : "#64748b", padding: "4px 10px", borderRadius: 9999, fontSize: 11, fontWeight: 700 }}>
                                 {b.status}
@@ -598,6 +848,7 @@ export default function StandalonePortal() {
               </div>
             </div>
           )}
+
           {/* TAB 2: TEMPLATES (Gallery OR Modular Next Slide Builder) */}
           {activeTab === "templates" && (
             <div>
@@ -616,21 +867,21 @@ export default function StandalonePortal() {
                     <div style={{ background: "#ffffff", border: "2px solid #e2e8f0", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                          <span style={{ fontSize: 28 }}>📦</span>
+                          <span style={{ fontSize: 28 }}>🪜</span>
                           <div>
                             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Multi-Collection Step Bundle</h3>
-                            <span style={{ fontSize: 11, background: "#dbeafe", color: "#1e40af", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>MULTI-TIERED</span>
+                            <span style={{ fontSize: 11, background: "#dbeafe", color: "#1e40af", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>DYNAMIC STEPS & COLLECTIONS</span>
                           </div>
                         </div>
                         <p style={{ color: "#64748b", fontSize: 14, lineHeight: 1.5, marginBottom: 18 }}>
-                          Customers pick 1 item from 3 designated collections (e.g. Board + Helmet + Gloves) and get a combined bundle discount at checkout.
+                          Customers build their own custom bundle across 2, 3, or multiple store collections with automatic percentage discount.
                         </p>
                         <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: 10, padding: 12, marginBottom: 20 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>Storefront Widget Preview:</div>
                           <div style={{ fontSize: 12, color: "#475569", display: "flex", flexDirection: "column", gap: 4 }}>
-                            <div>1. Choose Deck ($45.00)</div>
-                            <div>2. Choose Helmet (SAVE 15%)</div>
-                            <div>3. Choose Gloves (SAVE 25%)</div>
+                            <div>Step 1: Pick from Collection A</div>
+                            <div>Step 2: Pick from Collection B</div>
+                            <div>Step 3: Pick from Collection C (+ Add more)</div>
                           </div>
                         </div>
                       </div>
@@ -647,20 +898,20 @@ export default function StandalonePortal() {
                     <div style={{ background: "#ffffff", border: "2px solid #e2e8f0", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                          <span style={{ fontSize: 28 }}>⚡</span>
+                          <span style={{ fontSize: 28 }}>🎁</span>
                           <div>
                             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Buy X Get Y (BXGY) Deals</h3>
                             <span style={{ fontSize: 11, background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>HIGH CONVERSION</span>
                           </div>
                         </div>
                         <p style={{ color: "#64748b", fontSize: 14, lineHeight: 1.5, marginBottom: 18 }}>
-                          Reward customers with free or heavily discounted bonus items when they buy required quantities (e.g. Buy 2 Get 1 Free).
+                          Reward customers with free or heavily discounted bonus items when they buy required quantities (e.g. Buy 1 Get 1 Free, Buy 2 Get 3 Free).
                         </p>
                         <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: 10, padding: 12, marginBottom: 20 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>Storefront Widget Preview:</div>
                           <div style={{ fontSize: 12, color: "#475569", display: "flex", flexDirection: "column", gap: 4 }}>
-                            <div style={{ color: "#10b981", fontWeight: 700 }}>★ BUY 2 GET 1 FREE (SAVE 33%)</div>
-                            <div>Automatic line discount at cart</div>
+                            <div style={{ color: "#10b981", fontWeight: 700 }}>🎁 BUY 1 GET 1 FREE (SAVE 50%)</div>
+                            <div>All Products / Specific Items / Collections</div>
                           </div>
                         </div>
                       </div>
@@ -677,7 +928,7 @@ export default function StandalonePortal() {
                     <div style={{ background: "#ffffff", border: "2px solid #e2e8f0", borderRadius: 16, padding: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)" }}>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                          <span style={{ fontSize: 28 }}>📈</span>
+                          <span style={{ fontSize: 28 }}>📦</span>
                           <div>
                             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Volume Quantity Discounts</h3>
                             <span style={{ fontSize: 11, background: "#ecfdf5", color: "#065f46", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>TIERED PACKS</span>
@@ -735,13 +986,18 @@ export default function StandalonePortal() {
                     <VolumeDiscountBuilder
                       title={volTitle}
                       setTitle={setVolTitle}
+                      appliesTo={volAppliesTo}
+                      setAppliesTo={setVolAppliesTo}
                       selectedProducts={volSelectedProducts}
                       setSelectedProducts={setVolSelectedProducts}
+                      selectedCollections={volSelectedCollections}
+                      setSelectedCollections={setVolSelectedCollections}
                       tiers={volTiers}
                       setTiers={setVolTiers}
                       color={volColor}
                       setColor={setVolColor}
                       onOpenProductPicker={() => openProductPicker("vol")}
+                      onOpenCollectionPicker={openVolCollectionPicker}
                     />
                   )}
 
@@ -749,17 +1005,22 @@ export default function StandalonePortal() {
                     <BxgyBuilder
                       title={bxgyTitle}
                       setTitle={setBxgyTitle}
+                      headerTitle={bxgyHeaderTitle}
+                      setHeaderTitle={setBxgyHeaderTitle}
+                      appliesTo={bxgyAppliesTo}
+                      setAppliesTo={setBxgyAppliesTo}
                       selectedProducts={bxgySelectedProducts}
                       setSelectedProducts={setBxgySelectedProducts}
-                      buyQty={bxgyBuyQty}
-                      setBuyQty={setBxgyBuyQty}
-                      getQty={bxgyGetQty}
-                      setGetQty={setBxgyGetQty}
-                      badge={bxgyBadge}
-                      setBadge={setBxgyBadge}
+                      selectedCollections={bxgySelectedCollections}
+                      setSelectedCollections={setBxgySelectedCollections}
+                      tiers={bxgyTiers}
+                      setTiers={setBxgyTiers}
                       color={bxgyColor}
                       setColor={setBxgyColor}
+                      defaultTier={bxgyDefaultTier}
+                      setDefaultTier={setBxgyDefaultTier}
                       onOpenProductPicker={() => openProductPicker("bxgy")}
+                      onOpenCollectionPicker={openBxgyCollectionPicker}
                     />
                   )}
 
@@ -767,14 +1028,13 @@ export default function StandalonePortal() {
                     <StepBundleBuilder
                       title={stepTitle}
                       setTitle={setStepTitle}
-                      step1Products={step1Products}
-                      step2Products={step2Products}
-                      step3Products={step3Products}
+                      collectionRows={stepCollectionRows}
+                      setCollectionRows={setStepCollectionRows}
                       discountPercent={stepDiscountPercent}
                       setDiscountPercent={setStepDiscountPercent}
                       color={stepColor}
                       setColor={setStepColor}
-                      onOpenProductPicker={(step) => openProductPicker(step)}
+                      onOpenCollectionPicker={openStepCollectionPicker}
                     />
                   )}
                 </div>
@@ -797,7 +1057,7 @@ export default function StandalonePortal() {
                       <strong style={{ fontSize: 15, color: "#0f172a" }}>Storefront App Embed</strong>
                       <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Injects bundle widget scripts into your active theme.</div>
                     </div>
-                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>✓ Active</span>
+                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>● Active</span>
                   </div>
                 </div>
 
@@ -807,7 +1067,7 @@ export default function StandalonePortal() {
                       <strong style={{ fontSize: 15, color: "#0f172a" }}>Cart Transform WASM Engine</strong>
                       <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Shopify Functions runtime for checkout bundle price sync.</div>
                     </div>
-                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>✓ Synced (&lt;4ms)</span>
+                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>● Synced (&lt;4ms)</span>
                   </div>
                 </div>
 
@@ -817,7 +1077,7 @@ export default function StandalonePortal() {
                       <strong style={{ fontSize: 15, color: "#0f172a" }}>PostgreSQL Database Live Sync</strong>
                       <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Multi-tenant cloud persistence via Render PostgreSQL.</div>
                     </div>
-                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>✓ Connected</span>
+                    <span style={{ background: "#ecfdf5", color: "#065f46", padding: "4px 12px", borderRadius: 9999, fontSize: 12, fontWeight: 700 }}>● Connected</span>
                   </div>
                 </div>
               </div>
@@ -833,6 +1093,29 @@ export default function StandalonePortal() {
         products={products}
         selectedProducts={getSelectedModalProducts()}
         onToggleProduct={handleToggleProductInModal}
+        shop={shop}
+      />
+
+      {/* MODULAR IN-APP COLLECTION SELECTOR MODAL */}
+      <CollectionSelectorModal
+        show={showCollectionModal}
+        onClose={() => setShowCollectionModal(false)}
+        collections={collections}
+        isMulti={collectionModalTarget.type !== "step"}
+        selectedCollectionId={
+          collectionModalTarget.type === "step"
+            ? stepCollectionRows.find((r) => r.id === collectionModalTarget.stepId)?.collectionId
+            : undefined
+        }
+        selectedCollectionIds={
+          collectionModalTarget.type === "vol"
+            ? volSelectedCollections.map((c) => c.id)
+            : collectionModalTarget.type === "bxgy"
+            ? bxgySelectedCollections.map((c) => c.id)
+            : []
+        }
+        onSelectCollection={handleSelectCollectionForStep}
+        onToggleCollection={handleToggleCollectionInModal}
         shop={shop}
       />
     </div>
