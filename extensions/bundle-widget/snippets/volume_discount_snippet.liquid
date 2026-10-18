@@ -174,7 +174,7 @@
                   data-gift-bar="{{ tier_idx }}"
                 >
                   {% if tier.gift.type == 'shipping' %}
-                    <span>ÃƒÂ°Ã…Â¸Ã…Â¡Ã…Â¡</span>
+                    <span>🚚</span>
                   {% elsif tier.gift.imageUrl != blank %}
                     <img 
                       src="{{ tier.gift.imageUrl }}" 
@@ -182,7 +182,7 @@
                       style="width: {{ tier.gift.imageSize | default: 24 }}px; height: {{ tier.gift.imageSize | default: 24 }}px; border-radius: 4px; object-fit: cover;" 
                     />
                   {% else %}
-                    <span>ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Â</span>
+                    <span>🎁</span>
                   {% endif %}
                   <span>{{ tier.gift.text | default: '+ FREE Gift' }}</span>
                 </div>
@@ -739,7 +739,7 @@
 
           let giftBarHtml = '';
           if (tier.gift && tier.gift.enabled) {
-            const icon = tier.gift.type === 'shipping' ? 'ÃƒÂ°Ã…Â¸Ã…Â¡Ã…Â¡' : (tier.gift.imageUrl ? `<img src="${tier.gift.imageUrl}" style="width:24px; height:24px; border-radius:4px; object-fit:cover;" />` : 'ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Â');
+            const icon = tier.gift.type === 'shipping' ? '🚚' : (tier.gift.imageUrl ? `<img src="${tier.gift.imageUrl}" style="width:24px; height:24px; border-radius:4px; object-fit:cover;" />` : '🎁');
             const giftText = tier.gift.text || '+ FREE Gift';
             giftBarHtml = `
               <div class="vd-tier-gift-bar ${isSelected ? '' : 'vd-gift-hidden'}" data-gift-bar="${tierNum}">

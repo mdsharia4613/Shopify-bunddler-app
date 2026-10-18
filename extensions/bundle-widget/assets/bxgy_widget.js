@@ -176,7 +176,7 @@
 
           let popBadgeHtml = '';
           if (tier.popularBadge && tier.popularBadge.trim() !== '') {
-            popBadgeHtml = '<div class="bxgy-popular-badge"><span>Ã¢Å¡Â¡</span><span>' + tier.popularBadge + '</span></div>';
+            popBadgeHtml = '<div class="bxgy-popular-badge"><span>⚡</span><span>' + tier.popularBadge + '</span></div>';
           }
 
           let subtext = '';
