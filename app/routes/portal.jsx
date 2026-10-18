@@ -46,7 +46,7 @@ export const loader = async ({ request }) => {
     });
 
     if (session?.accessToken) {
-      const res = await fetch(`https://${shop}/admin/api/2026-10/graphql.json`, {
+      const res = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -213,7 +213,7 @@ export const action = async ({ request }) => {
         });
 
         if (session?.accessToken) {
-          const infoRes = await fetch(`https://${shop}/admin/api/2026-10/graphql.json`, {
+          const infoRes = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -249,13 +249,42 @@ export const action = async ({ request }) => {
             });
           } else if (strategy === "Volume Discounts") {
             metafieldKey = "active_volume";
+            const normalizedTiers = (parsedConfig.tiers || []).map((t, idx) => {
+              const qtyNum = Number(t.quantity || t.qty || (idx + 1));
+              let discNum = Number(t.discountPercent ?? t.discountValue ?? t.discount ?? 0);
+              if (t.pricingType === "full_price") discNum = 0;
+              const isPopular = (t.popularBadge && t.popularBadge.trim()) || (t.label && t.label.toLowerCase().includes("popular")) || (t.badge && t.badge.toLowerCase().includes("popular"));
+              const popBadge = isPopular ? (t.popularBadge || t.badge || t.label || "Most Popular") : "";
+              const saveTag = t.saveTag || (t.label && !isPopular ? t.label : (discNum > 0 ? `SAVE ${discNum}%` : ""));
+
+              return {
+                ...t,
+                id: t.id || (idx + 1),
+                qty: qtyNum,
+                quantity: qtyNum,
+                discount: discNum,
+                discountPercent: discNum,
+                discountValue: discNum,
+                pricingType: t.pricingType || (discNum > 0 ? "percentage_off" : "full_price"),
+                title: t.title || (idx === 0 ? "Single" : idx === 1 ? "Duo" : idx === 2 ? "Trio" : `${qtyNum} Units`),
+                subtitle: t.subtitle || (discNum > 0 ? `You save ${discNum}%` : "Standard price"),
+                label: t.label || "",
+                popularBadge: popBadge,
+                saveTag: saveTag,
+              };
+            });
+
             metafieldVal = JSON.stringify({
               id: savedBundle.id,
               title: savedBundle.title,
+              headerTitle: parsedConfig.headerTitle || "BUNDLE & SAVE",
               appliesTo: parsedConfig.appliesTo || "all",
               selectedProducts: parsedConfig.selectedProducts || [],
               selectedCollections: parsedConfig.selectedCollections || [],
-              tiers: parsedConfig.tiers || [],
+              selectedProductIds: (parsedConfig.selectedProducts || []).map(p => typeof p === "string" ? p : (p.id || "")),
+              selectedCollectionIds: (parsedConfig.selectedCollections || []).map(c => typeof c === "string" ? c : (c.id || "")),
+              tiers: normalizedTiers,
+              defaultTier: 2,
               accentColor: parsedConfig.accentColor || "#f59e0b",
               active: true,
               updatedAt: new Date().toISOString(),
@@ -278,35 +307,42 @@ export const action = async ({ request }) => {
           }
 
           if (metafieldVal) {
-            const metafields = [];
-            if (appInstallId) {
-              metafields.push({
-                ownerId: appInstallId,
-                namespace: "$app:smart_bundles",
-                key: metafieldKey,
-                type: "json",
-                value: metafieldVal,
-              });
-            }
-            if (shopId) {
-              metafields.push({
-                ownerId: shopId,
-                namespace: "$app:smart_bundles",
-                key: metafieldKey,
-                type: "json",
-                value: metafieldVal,
-              });
-              metafields.push({
-                ownerId: shopId,
-                namespace: "smart_bundles",
-                key: metafieldKey,
-                type: "json",
-                value: metafieldVal,
-              });
-            }
+            const keysToSet = strategy === "Volume Discounts"
+              ? ["active_volume", "active_volume_discount"]
+              : strategy === "Buy X Get Y"
+              ? ["active_bxgy", "active_bxgy_deal"]
+              : ["active_bundle", "active_bundle_discount"];
 
+            const metafields = [];
+            for (const k of keysToSet) {
+              if (appInstallId) {
+                metafields.push({
+                  ownerId: appInstallId,
+                  namespace: "$app:smart_bundles",
+                  key: k,
+                  type: "json",
+                  value: metafieldVal,
+                });
+              }
+              if (shopId) {
+                metafields.push({
+                  ownerId: shopId,
+                  namespace: "$app:smart_bundles",
+                  key: k,
+                  type: "json",
+                  value: metafieldVal,
+                });
+                metafields.push({
+                  ownerId: shopId,
+                  namespace: "smart_bundles",
+                  key: k,
+                  type: "json",
+                  value: metafieldVal,
+                });
+              }
+            }
             if (metafields.length > 0) {
-              await fetch(`https://${shop}/admin/api/2026-10/graphql.json`, {
+              await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",

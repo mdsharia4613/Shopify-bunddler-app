@@ -9,7 +9,13 @@
 
 {% if product %}
   {% comment %} Read Published Volume Discount from App Metafield {% endcomment %}
-  {% assign vd_meta = app.metafields.smart_bundles.active_volume_discount.value %}
+  {% assign vd_meta = app.metafields.smart_bundles.active_volume.value %}
+  {% if vd_meta == blank %}
+    {% assign vd_meta = shop.metafields.smart_bundles.active_volume.value %}
+  {% endif %}
+  {% if vd_meta == blank %}
+    {% assign vd_meta = app.metafields.smart_bundles.active_volume_discount.value %}
+  {% endif %}
   {% if vd_meta == blank %}
     {% assign vd_meta = shop.metafields.smart_bundles.active_volume_discount.value %}
   {% endif %}
@@ -22,20 +28,24 @@
     {% assign is_eligible = false %}
   {% elsif vd_meta.appliesTo == blank or vd_meta.appliesTo == 'all' %}
     {% assign is_eligible = true %}
-  {% elsif vd_meta.appliesTo == 'products' %}
+  {% elsif vd_meta.appliesTo == 'products' or vd_meta.appliesTo == 'specific' %}
     {% assign current_pid = product.id | append: "" %}
-    {% for pid in vd_meta.selectedProductIds %}
-      {% assign clean_pid = pid | split: "/" | last %}
+    {% assign prod_list = vd_meta.selectedProductIds | default: vd_meta.selectedProducts %}
+    {% for p in prod_list %}
+      {% assign p_id = p.id | default: p | append: "" %}
+      {% assign clean_pid = p_id | split: "/" | last %}
       {% if clean_pid == current_pid %}
         {% assign is_eligible = true %}
         {% break %}
       {% endif %}
     {% endfor %}
   {% elsif vd_meta.appliesTo == 'collections' %}
+    {% assign col_list = vd_meta.selectedCollectionIds | default: vd_meta.selectedCollections %}
     {% for col in product.collections %}
       {% assign current_cid = col.id | append: "" %}
-      {% for cid in vd_meta.selectedCollectionIds %}
-        {% assign clean_cid = cid | split: "/" | last %}
+      {% for c in col_list %}
+        {% assign c_id = c.id | default: c | append: "" %}
+        {% assign clean_cid = c_id | split: "/" | last %}
         {% if clean_cid == current_cid %}
           {% assign is_eligible = true %}
           {% break %}
@@ -92,16 +102,27 @@
               {% assign is_selected = true %}
             {% endif %}
 
-            {% assign raw_cents = base_price | times: tier.qty %}
-            {% assign disc_pct = tier.discount | plus: 0 %}
+            {% assign tier_qty = tier.quantity | default: tier.qty | default: forloop.index %}
+            {% assign disc_pct = tier.discountPercent | default: tier.discount | default: tier.discountValue | plus: 0 %}
+            {% assign raw_cents = base_price | times: tier_qty %}
             {% assign disc_cents = raw_cents | times: disc_pct | divided_by: 100 %}
             {% assign final_cents = raw_cents | minus: disc_cents %}
+
+            {% assign pop_badge = tier.popularBadge | default: tier.badge %}
+            {% if pop_badge == blank and tier.label != blank and tier.label contains 'Popular' %}
+              {% assign pop_badge = tier.label %}
+            {% endif %}
+
+            {% assign save_tag = tier.saveTag %}
+            {% if save_tag == blank and tier.label != blank and tier.label != pop_badge %}
+              {% assign save_tag = tier.label %}
+            {% endif %}
 
             <div class="vd-tier-card {% if is_selected %}is-selected{% endif %}" data-tier-card="{{ tier_idx }}">
               <div 
                 class="vd-tier-row {% if is_selected %}is-selected{% endif %}"
                 data-tier="{{ tier_idx }}"
-                data-qty="{{ tier.qty }}"
+                data-qty="{{ tier_qty }}"
                 data-discount="{{ disc_pct }}"
                 {% if tier.gift != blank and tier.gift.enabled %}
                   data-gift-type="{{ tier.gift.type }}"
@@ -112,10 +133,10 @@
                 aria-checked="{% if is_selected %}true{% else %}false{% endif %}"
               >
                 <!-- Floating Corner Badge -->
-                {% if tier.popularBadge != blank %}
+                {% if pop_badge != blank %}
                   <div class="vd-popular-badge">
                     <span>✨</span>
-                    <span>{{ tier.popularBadge }}</span>
+                    <span>{{ pop_badge }}</span>
                   </div>
                 {% endif %}
 
@@ -134,8 +155,8 @@
                   <div class="vd-tier-info">
                     <div class="vd-title-row">
                       <span class="vd-tier-title">{{ tier.title }}</span>
-                      {% if tier.saveTag != blank %}
-                        <span class="vd-save-pill">{{ tier.saveTag }}</span>
+                      {% if save_tag != blank %}
+                        <span class="vd-save-pill">{{ save_tag }}</span>
                       {% elsif disc_pct > 0 %}
                         <span class="vd-save-pill" data-save-pill="{{ tier_idx }}">
                           SAVE {{ disc_cents | money }}
@@ -659,7 +680,13 @@
       // Client-side dynamic tier sync from App API
       async function syncTiersFromApi() {
         try {
-          const res = await fetch('/api/bundles');
+          let res = null;
+          try {
+            res = await fetch('https://shopify-bunddler-app.onrender.com/api/bundles');
+          } catch(e) {}
+          if (!res || !res.ok) {
+            res = await fetch('/api/bundles');
+          }
           if (!res.ok) return;
           const data = await res.json();
           if (!data || !data.bundles) return;
@@ -695,8 +722,8 @@
         config.tiers.forEach((tier, idx) => {
           const tierNum = idx + 1;
           const isSelected = tierNum === defaultTierIndex;
-          const qty = parseInt(tier.qty || '1', 10);
-          const discount = parseFloat(tier.discount || '0');
+          const qty = parseInt(tier.quantity || tier.qty || '1', 10);
+          const discount = parseFloat(tier.discountPercent ?? tier.discount ?? tier.discountValue ?? '0');
           const rawCents = basePrice * qty;
           const savedCents = Math.round(rawCents * (discount / 100));
           const finalCents = rawCents - savedCents;
@@ -706,12 +733,16 @@
             giftAttr = `data-gift-type="${tier.gift.type || 'gift'}" data-gift-variant-id="${tier.gift.variantId || ''}"`;
           }
 
+          let popBadge = tier.popularBadge || tier.badge || '';
+          if (!popBadge && tier.label && tier.label.toLowerCase().includes('popular')) {
+            popBadge = tier.label;
+          }
           let popBadgeHtml = '';
-          if (tier.popularBadge) {
+          if (popBadge) {
             popBadgeHtml = `
               <div class="vd-popular-badge">
                 <span>✨</span>
-                <span>${tier.popularBadge}</span>
+                <span>${popBadge}</span>
               </div>
             `;
           }
@@ -723,9 +754,13 @@
             leftThumbHtml = `<img src="${tier.image.url}" alt="${tier.title}" class="vd-tier-thumb" style="width:${imgSize}px; height:${imgSize}px; border-radius:${imgRadius}px; object-fit:cover; flex-shrink:0;" />`;
           }
 
+          let saveTag = tier.saveTag || '';
+          if (!saveTag && tier.label && tier.label !== popBadge) {
+            saveTag = tier.label;
+          }
           let savePillHtml = '';
-          if (tier.saveTag) {
-            savePillHtml = `<span class="vd-save-pill">${tier.saveTag}</span>`;
+          if (saveTag) {
+            savePillHtml = `<span class="vd-save-pill">${saveTag}</span>`;
           } else if (discount > 0) {
             savePillHtml = `<span class="vd-save-pill" data-save-pill="${tierNum}">SAVE ${formatMoney(savedCents)}</span>`;
           }

@@ -70,12 +70,14 @@ export default function VolumeDiscountBuilder({
       if (value === "full_price") {
         current.discountValue = 0;
         current.discountPercent = 0;
+        current.discount = 0;
       }
     } else if (field === "discountValue") {
       const v = Math.max(0, parseFloat(value) || 0);
       current.discountValue = v;
       if (current.pricingType === "percentage_off") {
         current.discountPercent = Math.min(100, v);
+        current.discount = Math.min(100, v);
       }
     } else if (field === "title") {
       current.title = value;
@@ -83,8 +85,13 @@ export default function VolumeDiscountBuilder({
       current.subtitle = value;
     } else if (field === "label") {
       current.label = value;
+      current.saveTag = value;
+      if (value.toLowerCase().includes("popular")) {
+        current.popularBadge = value;
+      }
     } else if (field === "badge") {
       current.badge = value;
+      current.popularBadge = value;
     } else {
       current[field] = value;
     }
