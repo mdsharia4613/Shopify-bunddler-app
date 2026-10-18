@@ -242,7 +242,7 @@
         const badgeLabel = isBxgy ? (discountNum + '% OFF DEAL') : (discountNum + '% OFF BUNDLE');
         const componentsLabel = isBxgy ? 'Included in this deal:' : isVolume ? 'Included in this tier:' : 'Included in this bundle:';
         const removeLabel = isDeal ? 'Remove' : 'Remove Complete Bundle';
-        const qtyLabel = isBxgy ? '1 Deal' : isVolume ? (props['_volume_tier'] ? ('1 ' + props['_volume_tier']) : '1 Tier') : '1 Bundle';
+        const qtyLabel = isBxgy ? (props['_volume_tier'] ? ('1 ' + props['_volume_tier']) : '1 Deal') : isVolume ? (props['_volume_tier'] ? ('1 ' + props['_volume_tier']) : '1 Tier') : '1 Bundle';
 
         // Extract components list for chips
         let components = [];
@@ -258,15 +258,15 @@
           '<span class="sb-cart-chip"><span style="color:#059669; font-weight:bold;">•</span> ' + c + '</span>'
         ).join('');
 
-        // Pricing calculation (robust for volume discount and multi-collection bundle)
+        // Pricing calculation (robust for volume discount, bxgy, and multi-collection bundle)
         let originalCents = parseInt(props['_bundle_original_cents'] || '0', 10);
         let discountedCents = parseInt(props['_bundle_discounted_cents'] || '0', 10);
 
         if (!discountedCents || discountedCents <= 0) {
-          discountedCents = item.final_line_price || item.line_price || 17000;
+          discountedCents = item.final_line_price || item.line_price || 0;
         }
         if (!originalCents || originalCents <= discountedCents) {
-          originalCents = Math.round(discountedCents / (1 - (discountNum / 100)));
+          originalCents = discountNum > 0 ? Math.round(discountedCents / (1 - (discountNum / 100))) : (item.original_line_price || discountedCents);
         }
         const savingsCents = originalCents - discountedCents;
 
@@ -411,14 +411,25 @@
         });
       }
 
-      // Clean checkout buttons so Shopify Automatic Line Discount Function executes natively
+      // Ensure checkout receives discount code if available
       const checkoutBtns = document.querySelectorAll('form[action*="/cart"] button[name="checkout"], a[href*="/checkout"], .cart__checkout-button, button.cart__checkout-button, [name="checkout"]');
       checkoutBtns.forEach(btn => {
         btn.addEventListener("click", function(e) {
+          let foundDiscountCode = null;
+          cart.items.forEach(i => {
+            const code = (i.properties || {})['_bundle_discount_code'];
+            if (code && !foundDiscountCode) foundDiscountCode = code;
+          });
           const form = btn.closest("form");
-          if (form) {
+          if (form && foundDiscountCode) {
             let input = form.querySelector('input[name="discount"]');
-            if (input) input.remove();
+            if (!input) {
+              input = document.createElement('input');
+              input.type = 'hidden';
+              input.name = 'discount';
+              form.appendChild(input);
+            }
+            input.value = foundDiscountCode;
           }
         });
       });

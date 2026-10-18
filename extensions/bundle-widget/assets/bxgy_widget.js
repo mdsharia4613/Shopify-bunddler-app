@@ -122,7 +122,13 @@
       // Client-side dynamic tier sync from App API
       async function syncTiersFromApi() {
         try {
-          const res = await fetch('/api/bundles');
+          let res = null;
+          try {
+            res = await fetch('https://shopify-bunddler-app.onrender.com/api/bundles');
+          } catch(e) {}
+          if (!res || !res.ok) {
+            res = await fetch('/api/bundles');
+          }
           if (!res.ok) return;
           const data = await res.json();
           if (!data || !data.bundles) return;
@@ -344,8 +350,22 @@
         }
       }
 
+      function isWidgetActiveAndVisible(el) {
+        if (!el) return false;
+        if (el.closest('#sb-standalone-widgets-pool')) return false;
+        if (el.style.display === 'none') return false;
+        if (el.getAttribute('data-standalone') === 'true' && el.style.display === 'none') return false;
+        if (el.offsetParent === null) return false;
+        try {
+          const style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden') return false;
+        } catch(e) {}
+        return true;
+      }
+
       function interceptDefaultAddToCart() {
         document.addEventListener('submit', function(e) {
+          if (!isWidgetActiveAndVisible(container)) return;
           const form = e.target.closest('form[action*="/cart/add"]');
           if (!form) return;
 
@@ -361,6 +381,7 @@
         }, true);
 
         document.addEventListener('click', function(e) {
+          if (!isWidgetActiveAndVisible(container)) return;
           const btn = e.target.closest('button[type="submit"][name="add"], .product-form__submit, [name="add"], button[name="add"], .btn--add-to-cart');
           if (!btn) return;
 

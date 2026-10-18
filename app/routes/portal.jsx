@@ -9,6 +9,84 @@ import VolumeDiscountBuilder from "../components/portal/VolumeDiscountBuilder";
 import BxgyBuilder from "../components/portal/BxgyBuilder";
 import StepBundleBuilder from "../components/portal/StepBundleBuilder";
 
+
+async function ensureStoreFunctionsActive(shop, accessToken) {
+  try {
+    const fnRes = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": accessToken,
+      },
+      body: JSON.stringify({
+        query: `
+          query {
+            shopifyFunctions(first: 25) {
+              nodes { id title apiType }
+            }
+          }
+        `,
+      }),
+    });
+    const fnData = await fnRes.json();
+    const fns = fnData?.data?.shopifyFunctions?.nodes || [];
+
+    // 1. Activate cart transform if present
+    const ctFn = fns.find(f => f.apiType === 'cart_transform' || f.title.includes('cart-transform'));
+    if (ctFn) {
+      await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": accessToken,
+        },
+        body: JSON.stringify({
+          query: `
+            mutation createCartTransform($functionId: String!) {
+              cartTransformCreate(functionId: $functionId) {
+                cartTransform { id }
+                userErrors { field message }
+              }
+            }
+          `,
+          variables: { functionId: ctFn.id },
+        }),
+      });
+    }
+
+    // 2. Activate automatic discount function if present
+    const discFn = fns.find(f => f.apiType === 'discount' || f.title.includes('bundle-discount'));
+    if (discFn) {
+      await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": accessToken,
+        },
+        body: JSON.stringify({
+          query: `
+            mutation createBundleDiscountApp($automaticAppDiscount: DiscountAutomaticAppInput!) {
+              discountAutomaticAppCreate(automaticAppDiscount: $automaticAppDiscount) {
+                automaticAppDiscount { discountId title }
+                userErrors { field message }
+              }
+            }
+          `,
+          variables: {
+            automaticAppDiscount: {
+              title: "Smart Bundle Automatic Line Discount",
+              functionId: discFn.id,
+              startsAt: new Date().toISOString(),
+            },
+          },
+        }),
+      });
+    }
+  } catch (err) {
+    console.warn("Function auto-activation note:", err?.message);
+  }
+}
+
 export const loader = async ({ request }) => {
   const url = new URL(request.url);
   let shop = url.searchParams.get("shop");
@@ -46,6 +124,7 @@ export const loader = async ({ request }) => {
     });
 
     if (session?.accessToken) {
+      ensureStoreFunctionsActive(shop, session.accessToken);
       const res = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
         method: "POST",
         headers: {
@@ -213,6 +292,7 @@ export const action = async ({ request }) => {
         });
 
         if (session?.accessToken) {
+          ensureStoreFunctionsActive(shop, session.accessToken);
           const infoRes = await fetch(`https://${shop}/admin/api/2026-07/graphql.json`, {
             method: "POST",
             headers: {

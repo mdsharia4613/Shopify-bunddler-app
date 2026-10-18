@@ -9,6 +9,12 @@
   {% if bxgy_meta == blank %}
     {% assign bxgy_meta = shop.metafields.smart_bundles.active_bxgy.value %}
   {% endif %}
+  {% if bxgy_meta == blank %}
+    {% assign bxgy_meta = app.metafields.smart_bundles.active_bxgy_deal.value %}
+  {% endif %}
+  {% if bxgy_meta == blank %}
+    {% assign bxgy_meta = shop.metafields.smart_bundles.active_bxgy_deal.value %}
+  {% endif %}
 
   {% assign is_eligible = false %}
   {% if bxgy_meta == blank %}
@@ -17,20 +23,24 @@
     {% assign is_eligible = false %}
   {% elsif bxgy_meta.appliesTo == blank or bxgy_meta.appliesTo == 'all' %}
     {% assign is_eligible = true %}
-  {% elsif bxgy_meta.appliesTo == 'products' %}
+  {% elsif bxgy_meta.appliesTo == 'products' or bxgy_meta.appliesTo == 'specific' %}
     {% assign current_pid = product.id | append: '' %}
-    {% for pid in bxgy_meta.selectedProductIds %}
-      {% assign clean_pid = pid | split: '/' | last %}
+    {% assign prod_list = bxgy_meta.selectedProductIds | default: bxgy_meta.selectedProducts %}
+    {% for p in prod_list %}
+      {% assign p_id = p.id | default: p | append: '' %}
+      {% assign clean_pid = p_id | split: '/' | last %}
       {% if clean_pid == current_pid %}
         {% assign is_eligible = true %}
         {% break %}
       {% endif %}
     {% endfor %}
   {% elsif bxgy_meta.appliesTo == 'collections' %}
+    {% assign col_list = bxgy_meta.selectedCollectionIds | default: bxgy_meta.selectedCollections %}
     {% for col in product.collections %}
       {% assign current_cid = col.id | append: '' %}
-      {% for cid in bxgy_meta.selectedCollectionIds %}
-        {% assign clean_cid = cid | split: '/' | last %}
+      {% for c in col_list %}
+        {% assign c_id = c.id | default: c | append: '' %}
+        {% assign clean_cid = c_id | split: '/' | last %}
         {% if clean_cid == current_cid %}
           {% assign is_eligible = true %}
           {% break %}
